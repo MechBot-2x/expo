@@ -500,3 +500,17 @@ it('push should also add anchor routes', () => {
     type: 'stack',
   });
 });
+
+// describe('unique', () => {
+//   test('can push with dynamic unique', () => {
+//     renderRouter(
+//       {
+//         _layout: () => <Stack />,
+//         '[slug]': () => <Text testID="slug" />,
+//       },
+//       {
+//         initialUrl: '/apple',
+//       }
+//     );
+//   });
+// });
