@@ -9,8 +9,9 @@ jobs:
     steps:
       - name: pwd
         run: pwd
-      - name: ls
-        run: ls
-#      - name: Download dependencies
-#        run: ./scripts/download-dependencies.sh
+      - name: Download dependencies
+        run: git submodule update --init
+             git submodule foreach --recursive git checkout .
+             git lfs pull
+             yarn
 
