@@ -5,16 +5,12 @@ on:
     branches: ['doug/workflow-testing']
 
 jobs:
-  Download dependencies:
-    defaults:
-      run:
-        working_directory: ./expo
+  Set up repo:
     steps:
-      - run: ./scripts/download-dependencies.sh
-  Set up android:
-    defaults:
-      run:
-        working_directory: ./expo
-    steps:
-      - run: ./scripts/setup-react-android.sh  
+      - name: pwd
+        run: pwd
+      - name: ls
+        run: ls
+#      - name: Download dependencies
+#        run: ./scripts/download-dependencies.sh
 
