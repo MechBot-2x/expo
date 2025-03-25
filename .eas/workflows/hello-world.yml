@@ -9,9 +9,8 @@ jobs:
     steps:
       - uses: eas/checkout
       - name: Download dependencies
-        run: ls -la
-#        run: git submodule update --init
-#             git submodule foreach --recursive git checkout .
-#             git lfs pull
-#             yarn
+        run: git submodule update --init
+             git submodule foreach --recursive git checkout .
+             git lfs pull
+             yarn
 
