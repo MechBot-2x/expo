@@ -7,11 +7,11 @@ on:
 jobs:
   Set up repo:
     steps:
-      - name: pwd
-        run: pwd
+      - uses: eas/checkout
       - name: Download dependencies
-        run: git submodule update --init
-             git submodule foreach --recursive git checkout .
-             git lfs pull
-             yarn
+        run: ls -la
+#        run: git submodule update --init
+#             git submodule foreach --recursive git checkout .
+#             git lfs pull
+#             yarn
 
