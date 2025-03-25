@@ -5,7 +5,16 @@ on:
     branches: ['doug/workflow-testing']
 
 jobs:
-  Hello World:
+  Download dependencies:
+    defaults:
+      run:
+        working_directory: ./expo
     steps:
-      - run: echo "Hello, World"
+      - run: ./scripts/download-dependencies.sh
+  Set up android:
+    defaults:
+      run:
+        working_directory: ./expo
+    steps:
+      - run: ./scripts/setup-react-android.sh  
 
