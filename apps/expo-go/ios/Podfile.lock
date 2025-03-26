@@ -1961,7 +1961,7 @@ PODS:
     - Yoga
   - react-native-segmented-control (2.5.4):
     - React-Core
-  - react-native-skia (1.5.0):
+  - react-native-skia (1.12.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -3523,7 +3523,7 @@ SPEC CHECKSUMS:
   react-native-pager-view: a1b4f854df102a127b38fa49ff9d25af20a3c550
   react-native-safe-area-context: fb22a3043ce75c3145da87a74254a2ec527267b0
   react-native-segmented-control: fde795d4d9c95ebc97cd37a034eb0a7a922f1ec5
-  react-native-skia: 76d98b23c05d77c39346bc094183d314bd7bdf5b
+  react-native-skia: 02b8177f6ee5a8687ca1e8c1a75e0fd1426b1aca
   react-native-slider: c57011b1447edac8ddcc4d61cbd54172f378b7a0
   react-native-view-shot: 105375eceab012a37db548637dd6fca795af977a
   react-native-webview: d3a6bde17001bc9cded1b2219b6cc2e60f27b74d
