@@ -16,10 +16,22 @@ export type ExpoRouterServerManifestV1Route<TRegex = string> = {
   generated?: boolean;
 };
 
+export type ExpoRouterServerManifestV1Middleware = {
+  /**
+   * Path to the module that contains the middleware function as a default export.
+   *
+   * @example _expo/functions/+middleware.js
+   */
+  file: string;
+};
+
 export type ExpoRouterServerManifestV1<TRegex = string> = {
+  middleware?: ExpoRouterServerManifestV1Middleware;
   apiRoutes: ExpoRouterServerManifestV1Route<TRegex>[];
   htmlRoutes: ExpoRouterServerManifestV1Route<TRegex>[];
   notFoundRoutes: ExpoRouterServerManifestV1Route<TRegex>[];
+  redirects: ExpoRouterServerManifestV1Route<TRegex>[];
+  rewrites: ExpoRouterServerManifestV1Route<TRegex>[];
 };
 
 function getExpoRouteManifestBuilderAsync(projectRoot: string) {
@@ -62,6 +74,7 @@ export function inflateManifest(
 ): ExpoRouterServerManifestV1<RegExp> {
   return {
     ...json,
+    middleware: json.middleware,
     htmlRoutes: json.htmlRoutes?.map((value) => {
       return {
         ...value,
@@ -75,6 +88,18 @@ export function inflateManifest(
       };
     }),
     notFoundRoutes: json.notFoundRoutes?.map((value) => {
+      return {
+        ...value,
+        namedRegex: new RegExp(value.namedRegex),
+      };
+    }),
+    redirects: json.redirects?.map((value: any) => {
+      return {
+        ...value,
+        namedRegex: new RegExp(value.namedRegex),
+      };
+    }),
+    rewrites: json.rewrites?.map((value: any) => {
       return {
         ...value,
         namedRegex: new RegExp(value.namedRegex),

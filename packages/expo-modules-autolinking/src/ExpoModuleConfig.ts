@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 import {
   AndroidGradleAarProjectDescriptor,
   AndroidGradlePluginDescriptor,
@@ -21,6 +24,7 @@ export class ExpoAndroidProjectConfig {
     public modules?: string[],
     public publication?: AndroidPublication,
     public gradleAarProjects?: AndroidGradleAarProjectDescriptor[],
+    public shouldUsePublicationScriptPath?: string,
     /**
      * Whether this project is the root one.
      */
@@ -113,6 +117,7 @@ export class ExpoModuleConfig {
         this.rawConfig.android?.modules,
         this.rawConfig.android?.publication,
         this.rawConfig.android?.gradleAarProjects,
+        this.rawConfig.android?.shouldUsePublicationScriptPath,
         !this.rawConfig.android?.path // it's default project because path is not defined
       )
     );
@@ -124,7 +129,8 @@ export class ExpoModuleConfig {
           project.path,
           project.modules,
           project.publication,
-          project.gradleAarProjects
+          project.gradleAarProjects,
+          project.shouldUsePublicationScriptPath
         )
       );
     });
@@ -168,11 +174,24 @@ export class ExpoModuleConfig {
   }
 }
 
-/**
- * Reads the config at given path and returns the config wrapped by `ExpoModuleConfig` class.
- */
-export function requireAndResolveExpoModuleConfig(path: string): ExpoModuleConfig {
-  // TODO: Validate the raw config against a schema.
-  // TODO: Support for `*.js` files, not only static `*.json`.
-  return new ExpoModuleConfig(require(path) as RawExpoModuleConfig);
+/** Names of Expo Module config files (highest to lowest priority) */
+const EXPO_MODULE_CONFIG_FILENAMES = ['expo-module.config.json', 'unimodule.json'];
+
+export async function discoverExpoModuleConfigAsync(
+  directoryPath: string
+): Promise<ExpoModuleConfig | null> {
+  for (let idx = 0; idx < EXPO_MODULE_CONFIG_FILENAMES.length; idx++) {
+    // TODO: Validate the raw config against a schema.
+    // TODO: Support for `*.js` files, not only static `*.json`.
+    const targetPath = path.join(directoryPath, EXPO_MODULE_CONFIG_FILENAMES[idx]);
+    let text: string;
+    try {
+      text = await fs.promises.readFile(targetPath, 'utf8');
+    } catch {
+      // try the next file
+      continue;
+    }
+    return new ExpoModuleConfig(JSON.parse(text) as RawExpoModuleConfig);
+  }
+  return null;
 }

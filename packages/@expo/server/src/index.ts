@@ -1,253 +1,220 @@
-import './install';
+import { ImmutableRequest } from './ImmutableRequest';
+import { ExpoError } from './error';
+import { Manifest, Middleware, MiddlewareFunction, Route } from './types';
+import { getRedirectRewriteLocation, isResponse, parseParams } from './utils';
 
-import type { ExpoRoutesManifestV1, RouteInfo } from 'expo-router/build/routes-manifest';
-import fs from 'node:fs';
-import path from 'node:path';
+/**
+ * @deprecated Use Fetch API `Request` instead.
+ *
+ * [MDN Reference](https://developer.mozilla.org/docs/Web/API/Request)
+ */
+type ExpoRequest = Request;
 
-import { ExpoRouterServerManifestV1FunctionRoute } from './types';
+/**
+ * @deprecated Use Fetch API `Response` instead.
+ *
+ * [MDN Reference](https://developer.mozilla.org/docs/Web/API/Response)
+ */
+type ExpoResponse = Request;
 
-const debug =
-  process.env.NODE_ENV === 'development'
-    ? (require('debug')('expo:server') as typeof console.log)
-    : () => {};
+export { ExpoRequest, ExpoResponse };
+export { ExpoError } from './error';
+export { type MiddlewareFunction } from './types';
 
-function getProcessedManifest(path: string): ExpoRoutesManifestV1<RegExp> {
-  // TODO: JSON Schema for validation
-  const routesManifest = JSON.parse(fs.readFileSync(path, 'utf-8')) as ExpoRoutesManifestV1;
+type ResponseInitLike = Omit<ResponseInit, 'headers'> & {
+  headers: Record<string, string>;
+};
+// NOTE(@krystofwoldrich): For better general usability of the callback bodyInit could be also passed as arg.
+// But we don't have a use case for it now, same for full HeaderInit type.
+type BeforeResponseCallback = (
+  route: Route | null,
+  responseInit: ResponseInitLike
+) => ResponseInitLike;
+function noopBeforeResponse(
+  _route: Route | null,
+  responseInit: ResponseInitLike
+): ResponseInitLike {
+  return responseInit;
+}
 
-  const parsed: ExpoRoutesManifestV1<RegExp> = {
-    ...routesManifest,
-    notFoundRoutes: routesManifest.notFoundRoutes.map((value: any) => {
-      return {
-        ...value,
-        namedRegex: new RegExp(value.namedRegex),
-      };
-    }),
-    apiRoutes: routesManifest.apiRoutes.map((value: any) => {
-      return {
-        ...value,
-        namedRegex: new RegExp(value.namedRegex),
-      };
-    }),
-    htmlRoutes: routesManifest.htmlRoutes.map((value: any) => {
-      return {
-        ...value,
-        namedRegex: new RegExp(value.namedRegex),
-      };
-    }),
+export function createRequestHandler({
+  getRoutesManifest,
+  getHtml,
+  getApiRoute,
+  handleRouteError,
+  getMiddleware,
+  beforeErrorResponse = noopBeforeResponse,
+  beforeResponse = noopBeforeResponse,
+  beforeHTMLResponse = noopBeforeResponse,
+  beforeAPIResponse = noopBeforeResponse,
+}: {
+  getHtml: (request: Request, route: Route) => Promise<string | Response | null>;
+  getRoutesManifest: () => Promise<Manifest | null>;
+  getApiRoute: (route: Route) => Promise<any>;
+  getMiddleware: (route: Middleware) => Promise<any>;
+  handleRouteError: (error: Error) => Promise<Response>;
+  beforeErrorResponse?: BeforeResponseCallback;
+  beforeResponse?: BeforeResponseCallback;
+  beforeHTMLResponse?: BeforeResponseCallback;
+  beforeAPIResponse?: BeforeResponseCallback;
+}) {
+  return async function handler(request: Request): Promise<Response> {
+    const manifest = await getRoutesManifest();
+    return requestHandler(request, manifest);
   };
 
-  return parsed;
-}
-
-export function getRoutesManifest(distFolder: string) {
-  return getProcessedManifest(path.join(distFolder, '_expo/routes.json'));
-}
-
-// TODO: Reuse this for dev as well
-export function createRequestHandler(
-  distFolder: string,
-  {
-    getRoutesManifest: getInternalRoutesManifest,
-    getHtml = async (_request, route) => {
-      // Serve a static file by exact route name
-      const filePath = path.join(distFolder, route.page + '.html');
-      if (fs.existsSync(filePath)) {
-        return fs.readFileSync(filePath, 'utf-8');
-      }
-
-      // Serve a static file by route name with hoisted index
-      // See: https://github.com/expo/expo/pull/27935
-      const hoistedFilePath = route.page.match(/\/index$/)
-        ? path.join(distFolder, route.page.replace(/\/index$/, '') + '.html')
-        : null;
-      if (hoistedFilePath && fs.existsSync(hoistedFilePath)) {
-        return fs.readFileSync(hoistedFilePath, 'utf-8');
-      }
-
-      return null;
-    },
-    getApiRoute = async (route) => {
-      const filePath = path.join(distFolder, route.file);
-
-      debug(`Handling API route: ${route.page}: ${filePath}`);
-
-      // TODO: What's the standard behavior for malformed projects?
-      if (!fs.existsSync(filePath)) {
-        return null;
-      }
-
-      if (/\.c?js$/.test(filePath)) {
-        return require(filePath);
-      }
-      return import(filePath);
-    },
-    logApiRouteExecutionError = (error: Error) => {
-      console.error(error);
-    },
-    handleApiRouteError = async (error: Error) => {
-      if ('statusCode' in error && typeof error.statusCode === 'number') {
-        return new Response(error.message, {
-          status: error.statusCode,
-          headers: {
-            'Content-Type': 'text/plain',
-          },
-        });
-      }
-      return new Response('Internal server error', {
-        status: 500,
+  async function requestHandler(incomingRequest: Request, manifest: Manifest | null) {
+    if (!manifest) {
+      // NOTE(@EvanBacon): Development error when Expo Router is not setup.
+      // NOTE(@kitten): If the manifest is not found, we treat this as
+      // an SSG deployment and do nothing
+      return createResponse(null, 'Not found', {
+        status: 404,
         headers: {
           'Content-Type': 'text/plain',
         },
       });
-    },
-  }: {
-    getHtml?: (request: Request, route: RouteInfo<RegExp>) => Promise<string | Response | null>;
-    getRoutesManifest?: (distFolder: string) => Promise<ExpoRoutesManifestV1<RegExp> | null>;
-    getApiRoute?: (route: RouteInfo<RegExp>) => Promise<any>;
-    logApiRouteExecutionError?: (error: Error) => void;
-    handleApiRouteError?: (error: Error) => Promise<Response>;
-  } = {}
-) {
-  let routesManifest: ExpoRoutesManifestV1<RegExp> | undefined;
+    }
 
-  function updateRequestWithConfig(
-    request: Request,
-    config: ExpoRouterServerManifestV1FunctionRoute
-  ) {
-    const params: Record<string, string> = {};
-    const url = new URL(request.url);
-    const match = config.namedRegex.exec(url.pathname);
-    if (match?.groups) {
-      for (const [key, value] of Object.entries(match.groups)) {
-        const namedKey = config.routeKeys[key];
-        params[namedKey] = value;
+    let request = incomingRequest;
+    let url = new URL(request.url);
+
+    if (manifest.middleware && shouldRunMiddleware(request, manifest.middleware)) {
+      try {
+        const middlewareModule = await getMiddleware(manifest.middleware);
+        if (middlewareModule?.default) {
+          const middlewareFn = middlewareModule.default as MiddlewareFunction;
+          const middlewareResponse = await middlewareFn(new ImmutableRequest(request));
+          if (middlewareResponse instanceof Response) {
+            return middlewareResponse;
+          }
+
+          // If middleware returns undefined/void, continue to route matching
+        }
+      } catch (error) {
+        // Shows RedBox in development
+        return handleRouteError(error as Error);
       }
     }
 
-    return params;
-  }
-
-  return async function handler(request: Request): Promise<Response> {
-    if (getInternalRoutesManifest) {
-      const manifest = await getInternalRoutesManifest(distFolder);
-      if (manifest) {
-        routesManifest = manifest;
-      } else {
-        // Development error when Expo Router is not setup.
-        return new Response('No routes manifest found', {
-          status: 404,
-          headers: {
-            'Content-Type': 'text/plain',
-          },
-        });
-      }
-    } else if (!routesManifest) {
-      routesManifest = getRoutesManifest(distFolder);
-    }
-
-    const url = new URL(request.url, 'http://expo.dev');
-
-    const sanitizedPathname = url.pathname;
-
-    debug('Request', sanitizedPathname);
-
-    if (request.method === 'GET' || request.method === 'HEAD') {
-      // First test static routes
-      for (const route of routesManifest.htmlRoutes) {
-        if (!route.namedRegex.test(sanitizedPathname)) {
+    if (manifest.redirects) {
+      for (const route of manifest.redirects) {
+        if (!route.namedRegex.test(url.pathname)) {
           continue;
         }
 
-        // // Mutate to add the expoUrl object.
-        updateRequestWithConfig(request, route);
-
-        // serve a static file
-        const contents = await getHtml(request, route);
-
-        // TODO: What's the standard behavior for malformed projects?
-        if (!contents) {
-          return new Response('Not found', {
-            status: 404,
-            headers: {
-              'Content-Type': 'text/plain',
-            },
-          });
-        } else if (contents instanceof Response) {
-          return contents;
+        if (route.methods && !route.methods.includes(request.method)) {
+          continue;
         }
 
-        return new Response(contents, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/html',
-          },
-        });
+        return respondRedirect(url, request, route);
+      }
+    }
+
+    if (manifest.rewrites) {
+      for (const route of manifest.rewrites) {
+        if (!route.namedRegex.test(url.pathname)) {
+          continue;
+        }
+
+        if (route.methods && !route.methods.includes(request.method)) {
+          continue;
+        }
+
+        // Replace URL and Request with rewrite target
+        url = getRedirectRewriteLocation(url, request, route);
+        request = new Request(url, request);
+      }
+    }
+
+    // First, test static routes
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      for (const route of manifest.htmlRoutes) {
+        if (!route.namedRegex.test(url.pathname)) {
+          continue;
+        }
+
+        try {
+          const html = await getHtml(request, route);
+          return respondHTML(html, route);
+        } catch (error) {
+          // Shows RedBox in development
+          return handleRouteError(error as Error);
+        }
       }
     }
 
     // Next, test API routes
-    for (const route of routesManifest.apiRoutes) {
-      if (!route.namedRegex.test(sanitizedPathname)) {
+    for (const route of manifest.apiRoutes) {
+      if (!route.namedRegex.test(url.pathname)) {
         continue;
       }
 
-      const func = await getApiRoute(route);
-
-      if (func instanceof Response) {
-        return func;
-      }
-
-      const routeHandler = func?.[request.method];
-      if (!routeHandler) {
-        return new Response('Method not allowed', {
-          status: 405,
-          headers: {
-            'Content-Type': 'text/plain',
-          },
-        });
-      }
-
-      // Mutate to add the expoUrl object.
-      const params = updateRequestWithConfig(request, route);
-
       try {
-        // TODO: Handle undefined
-        return (await routeHandler(request, params)) as Response;
+        const mod = await getApiRoute(route);
+        return await respondAPI(mod, request, route);
       } catch (error) {
-        if (error instanceof Error) {
-          logApiRouteExecutionError(error);
-        }
-
-        return handleApiRouteError(error as Error);
+        // Shows RedBox in development
+        return handleRouteError(error as Error);
       }
     }
 
     // Finally, test 404 routes
-    for (const route of routesManifest.notFoundRoutes) {
-      if (!route.namedRegex.test(sanitizedPathname)) {
-        continue;
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      for (const route of manifest.notFoundRoutes) {
+        if (!route.namedRegex.test(url.pathname)) {
+          continue;
+        }
+
+        try {
+          const contents = await getHtml(request, route);
+          return respondNotFoundHTML(contents, route);
+        } catch {
+          // NOTE(@krystofwoldrich): Should we show a dismissible RedBox in development?
+          // Handle missing/corrupted not found route files
+          continue;
+        }
       }
+    }
 
-      // // Mutate to add the expoUrl object.
-      updateRequestWithConfig(request, route);
+    // 404
+    return createResponse(null, 'Not found', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+  }
 
-      // serve a static file
-      const contents = await getHtml(request, route);
+  function createResponse(
+    route: Route | null,
+    bodyInit: BodyInit | null,
+    responseInit: ResponseInitLike,
+    routeType: 'html' | 'api' | null = null
+  ): Response {
+    const originalStatus = responseInit.status;
 
-      // TODO: What's the standard behavior for malformed projects?
-      if (!contents) {
-        return new Response('Not found', {
-          status: 404,
-          headers: {
-            'Content-Type': 'text/plain',
-          },
-        });
-      } else if (contents instanceof Response) {
-        return contents;
-      }
+    let modifiedResponseInit = responseInit;
+    // Callback call order matters, general rule is to call more specific callbacks first.
+    if (routeType === 'html') {
+      modifiedResponseInit = beforeHTMLResponse(route, modifiedResponseInit);
+    }
+    if (routeType === 'api') {
+      modifiedResponseInit = beforeAPIResponse(route, modifiedResponseInit);
+    }
+    // Second to last is error response callback
+    if (originalStatus && originalStatus > 399) {
+      modifiedResponseInit = beforeErrorResponse(route, modifiedResponseInit);
+    }
+    // Generic before response callback last
+    modifiedResponseInit = beforeResponse(route, modifiedResponseInit);
+    return new Response(bodyInit, modifiedResponseInit);
+  }
 
-      return new Response(contents, {
+  async function respondNotFoundHTML(
+    html: string | Response | null,
+    route: Route
+  ): Promise<Response> {
+    if (typeof html === 'string') {
+      return createResponse(route, html, {
         status: 404,
         headers: {
           'Content-Type': 'text/html',
@@ -255,13 +222,98 @@ export function createRequestHandler(
       });
     }
 
-    // 404
-    const response = new Response('Not found', {
-      status: 404,
-      headers: {
-        'Content-Type': 'text/plain',
-      },
-    });
+    if (isResponse(html)) {
+      // Only used for development errors
+      return html;
+    }
+
+    throw new ExpoError(`HTML route file ${route.page}.html could not be loaded`);
+  }
+
+  async function respondAPI(mod: any, request: Request, route: Route): Promise<Response> {
+    if (!mod || typeof mod !== 'object') {
+      throw new ExpoError(`API route module ${route.page} could not be loaded`);
+    }
+
+    if (isResponse(mod)) {
+      // Only used for development API route bundling errors
+      return mod;
+    }
+
+    const handler = mod[request.method];
+    if (!handler || typeof handler !== 'function') {
+      return createResponse(
+        route,
+        'Method not allowed',
+        {
+          status: 405,
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+        },
+        'api'
+      );
+    }
+
+    const params = parseParams(request, route);
+    const response = await handler(request, params);
+    if (!isResponse(response)) {
+      throw new ExpoError(
+        `API route ${request.method} handler ${route.page} resolved to a non-Response result`
+      );
+    }
+
     return response;
-  };
+  }
+
+  function respondHTML(html: string | Response | null, route: Route): Response {
+    if (typeof html === 'string') {
+      return createResponse(
+        route,
+        html,
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/html',
+          },
+        },
+        'html'
+      );
+    }
+
+    if (isResponse(html)) {
+      // Only used for development error responses
+      return html;
+    }
+
+    throw new ExpoError(`HTML route file ${route.page}.html could not be loaded`);
+  }
+
+  function respondRedirect(url: URL, request: Request, route: Route): Response {
+    // NOTE(@krystofwoldrich): @expo/server would not redirect when location was empty,
+    // it would keep searching for match and eventually return 404. Worker redirects to origin.
+    const target = getRedirectRewriteLocation(url, request, route);
+
+    let status: number;
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      status = route.permanent ? 301 : 302;
+    } else {
+      status = route.permanent ? 308 : 307;
+    }
+
+    return Response.redirect(target, status);
+  }
+}
+
+/**
+ * Determines whether middleware should run for a given request based on matcher configuration.
+ */
+function shouldRunMiddleware(request: Request, middleware: Middleware): boolean {
+  // TODO(@hassankhan): Implement pattern matching for middleware
+  return true;
+
+  // No matcher means middleware runs on all requests
+  // if (!middleware.matcher) {
+  //   return true;
+  // }
 }

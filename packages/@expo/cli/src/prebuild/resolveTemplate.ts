@@ -6,6 +6,7 @@ import semver from 'semver';
 import { type ResolvedTemplateOption } from './resolveOptions';
 import { fetchAsync } from '../api/rest/client';
 import * as Log from '../log';
+import { resolveLocalTemplateAsync } from './resolveLocalTemplate';
 import { createGlobFilter } from '../utils/createFileTransform';
 import { AbortCommandError } from '../utils/errors';
 import {
@@ -27,11 +28,13 @@ type RepoInfo = {
 
 export async function cloneTemplateAsync({
   templateDirectory,
+  projectRoot,
   template,
   exp,
   ora,
 }: {
   templateDirectory: string;
+  projectRoot: string;
   template?: ResolvedTemplateOption;
   exp: Pick<ExpoConfig, 'name' | 'sdkVersion'>;
   ora: Ora;
@@ -55,16 +58,21 @@ export async function cloneTemplateAsync({
       throw new Error(`Unknown template type: ${type}`);
     }
   } else {
-    const templatePackageName = await getTemplateNpmPackageName(exp.sdkVersion);
-    return await downloadAndExtractNpmModuleAsync(templatePackageName, {
-      cwd: templateDirectory,
-      name: exp.name,
-    });
+    try {
+      return await resolveLocalTemplateAsync({ templateDirectory, projectRoot, exp });
+    } catch (error: any) {
+      const templatePackageName = getTemplateNpmPackageNameFromSdkVersion(exp.sdkVersion);
+      debug('Fallback to SDK template:', templatePackageName);
+      return await downloadAndExtractNpmModuleAsync(templatePackageName, {
+        cwd: templateDirectory,
+        name: exp.name,
+      });
+    }
   }
 }
 
 /** Given an `sdkVersion` like `44.0.0` return a fully qualified NPM package name like: `expo-template-bare-minimum@sdk-44` */
-function getTemplateNpmPackageName(sdkVersion?: string): string {
+function getTemplateNpmPackageNameFromSdkVersion(sdkVersion?: string): string {
   // When undefined or UNVERSIONED, we use the latest version.
   if (!sdkVersion || sdkVersion === 'UNVERSIONED') {
     Log.log('Using an unspecified Expo SDK version. The latest template will be used.');
@@ -151,9 +159,7 @@ async function resolveAndDownloadRepoTemplateAsync(
     }
   }
   if (!repoUrl) {
-    oraInstance.fail(
-      `Invalid URL: ${chalk.red(`"${template}"`)}. Please use a valid URL and try again.`
-    );
+    oraInstance.fail(`Invalid URL: ${chalk.red(`"${template}"`)}. Try again with a valid URL.`);
     throw new AbortCommandError();
   }
 
@@ -161,7 +167,7 @@ async function resolveAndDownloadRepoTemplateAsync(
     oraInstance.fail(
       `Invalid URL: ${chalk.red(
         `"${template}"`
-      )}. Only GitHub repositories are supported. Please use a GitHub URL and try again.`
+      )}. Only GitHub repositories are supported. Try again with a valid GitHub URL.`
     );
     throw new AbortCommandError();
   }
@@ -170,7 +176,7 @@ async function resolveAndDownloadRepoTemplateAsync(
 
   if (!repoInfo) {
     oraInstance.fail(
-      `Found invalid GitHub URL: ${chalk.red(`"${template}"`)}. Please fix the URL and try again.`
+      `Found invalid GitHub URL: ${chalk.red(`"${template}"`)}. Fix the URL and try again.`
     );
     throw new AbortCommandError();
   }
@@ -181,7 +187,7 @@ async function resolveAndDownloadRepoTemplateAsync(
     oraInstance.fail(
       `Could not locate the repository for ${chalk.red(
         `"${template}"`
-      )}. Please check that the repository exists and try again.`
+      )}. Check that the repository exists and try again.`
     );
     throw new AbortCommandError();
   }

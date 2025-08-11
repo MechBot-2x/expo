@@ -1,6 +1,6 @@
 import type { SharedRefType } from 'expo';
 import type { Ref } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { ProcessedColorValue, StyleProp, ViewStyle } from 'react-native';
 
 import { CameraPosition, Coordinates } from '../shared.types';
 
@@ -8,6 +8,11 @@ import { CameraPosition, Coordinates } from '../shared.types';
  * @platform ios
  */
 export type AppleMapsMarker = {
+  /**
+   * The unique identifier for the marker. This can be used to identify the clicked marker in the `onMarkerClick` event.
+   */
+  id?: string;
+
   /**
    * The SF Symbol to display for the marker.
    */
@@ -75,9 +80,180 @@ export enum AppleMapsMapType {
 }
 
 /**
+ * The style of the polyline.
+ * @platform ios
+ */
+export enum AppleMapsContourStyle {
+  /**
+   * A straight line.
+   */
+  STRAIGHT = 'STRAIGHT',
+  /**
+   * A geodesic line.
+   */
+  GEODESIC = 'GEODESIC',
+}
+
+/**
+ * @platform ios
+ */
+export enum AppleMapsMapStyleElevation {
+  /**
+   * The default elevation style, that renders a flat, 2D map.
+   */
+  AUTOMATIC = 'AUTOMATIC',
+  /**
+   * A flat elevation style.
+   */
+  FLAT = 'FLAT',
+  /**
+   * A value that renders a realistic, 3D map.
+   */
+  REALISTIC = 'REALISTIC',
+}
+
+/**
+ * @platform ios
+ */
+export enum AppleMapsMapStyleEmphasis {
+  /**
+   * The default level of emphasis.
+   */
+  AUTOMATIC = 'AUTOMATIC',
+  /**
+   * A muted emphasis style, that deemphasizes the map’s imagery.
+   */
+  MUTED = 'MUTED',
+}
+
+/**
+ * @platform ios
+ * @see https://developer.apple.com/documentation/mapkit/AppleMapPointOfInterestCategory
+ */
+export enum AppleMapPointOfInterestCategory {
+  // Arts and culture
+  MUSEUM = 'MUSEUM',
+  MUSIC_VENUE = 'MUSIC_VENUE',
+  THEATER = 'THEATER',
+
+  // Education
+  LIBRARY = 'LIBRARY',
+  PLANETARIUM = 'PLANETARIUM',
+  SCHOOL = 'SCHOOL',
+  UNIVERSITY = 'UNIVERSITY',
+
+  // Entertainment
+  MOVIE_THEATER = 'MOVIE_THEATER',
+  NIGHTLIFE = 'NIGHTLIFE',
+
+  // Health and safety
+  FIRE_STATION = 'FIRE_STATION',
+  HOSPITAL = 'HOSPITAL',
+  PHARMACY = 'PHARMACY',
+  POLICE = 'POLICE',
+
+  // Historical and cultural landmarks
+  CASTLE = 'CASTLE',
+  FORTRESS = 'FORTRESS',
+  LANDMARK = 'LANDMARK',
+  NATIONAL_MONUMENT = 'NATIONAL_MONUMENT',
+
+  // Food and drink
+  BAKERY = 'BAKERY',
+  BREWERY = 'BREWERY',
+  CAFE = 'CAFE',
+  DISTILLERY = 'DISTILLERY',
+  FOOD_MARKET = 'FOOD_MARKET',
+  RESTAURANT = 'RESTAURANT',
+  WINERY = 'WINERY',
+
+  // Personal services
+  ANIMAL_SERVICE = 'ANIMAL_SERVICE',
+  ATM = 'ATM',
+  AUTOMOTIVE_REPAIR = 'AUTOMOTIVE_REPAIR',
+  BANK = 'BANK',
+  BEAUTY = 'BEAUTY',
+  EV_CHARGER = 'EV_CHARGER',
+  FITNESS_CENTER = 'FITNESS_CENTER',
+  LAUNDRY = 'LAUNDRY',
+  MAILBOX = 'MAILBOX',
+  POST_OFFICE = 'POST_OFFICE',
+  RESTROOM = 'RESTROOM',
+  SPA = 'SPA',
+  STORE = 'STORE',
+
+  // Parks and recreation
+  AMUSEMENT_PARK = 'AMUSEMENT_PARK',
+  AQUARIUM = 'AQUARIUM',
+  BEACH = 'BEACH',
+  CAMPGROUND = 'CAMPGROUND',
+  FAIRGROUND = 'FAIRGROUND',
+  MARINA = 'MARINA',
+  NATIONAL_PARK = 'NATIONAL_PARK',
+  PARK = 'PARK',
+  RV_PARK = 'RV_PARK',
+  ZOO = 'ZOO',
+
+  // Sports
+  BASEBALL = 'BASEBALL',
+  BASKETBALL = 'BASKETBALL',
+  BOWLING = 'BOWLING',
+  GO_KART = 'GO_KART',
+  GOLF = 'GOLF',
+  HIKING = 'HIKING',
+  MINI_GOLF = 'MINI_GOLF',
+  ROCK_CLIMBING = 'ROCK_CLIMBING',
+  SKATE_PARK = 'SKATE_PARK',
+  SKATING = 'SKATING',
+  SKIING = 'SKIING',
+  SOCCER = 'SOCCER',
+  STADIUM = 'STADIUM',
+  TENNIS = 'TENNIS',
+  VOLLEYBALL = 'VOLLEYBALL',
+
+  // Travel
+  AIRPORT = 'AIRPORT',
+  CAR_RENTAL = 'CAR_RENTAL',
+  CONVENTION_CENTER = 'CONVENTION_CENTER',
+  GAS_STATION = 'GAS_STATION',
+  HOTEL = 'HOTEL',
+  PARKING = 'PARKING',
+  PUBLIC_TRANSPORT = 'PUBLIC_TRANSPORT',
+
+  // Water sports
+  FISHING = 'FISHING',
+  KAYAKING = 'KAYAKING',
+  SURFING = 'SURFING',
+  SWIMMING = 'SWIMMING',
+}
+
+/**
+ * @platform ios
+ */
+export type AppleMapsPointOfInterestCategories = {
+  /**
+   * The POI categories to include.
+   * To hide all POIs, set this to an empty array.
+   */
+  including?: AppleMapPointOfInterestCategory[];
+
+  /**
+   * The POI categories to exclude.
+   * To show all POIs, set this to an empty array.
+   */
+  excluding?: AppleMapPointOfInterestCategory[];
+};
+
+/**
  * @platform ios
  */
 export type AppleMapsProperties = {
+  /**
+   * Whether the user location is shown on the map.
+   * @default false
+   */
+  isMyLocationEnabled?: boolean;
+
   /**
    * Whether the traffic layer is enabled on the map.
    */
@@ -89,9 +265,32 @@ export type AppleMapsProperties = {
   mapType?: AppleMapsMapType;
 
   /**
+   * A structure you use to define points of interest to include or exclude on a map.
+   */
+  pointsOfInterest?: AppleMapsPointOfInterestCategories;
+
+  /**
+   * Values you use to determine whether a map renders elevation.
+   */
+  elevation?: AppleMapsMapStyleElevation;
+
+  /**
+   * Values that control how the framework emphasizes map features.
+   */
+  emphasis?: AppleMapsMapStyleEmphasis;
+
+  /**
    * If true, the user can select a location on the map to get more information.
    */
   selectionEnabled?: boolean;
+
+  /**
+   * The maximum distance in meters from a tap of a polyline for it to be considered a hit.
+   * If the distance is greater than the threshold, the polyline is not considered a hit.
+   * If a hit occurs, the `onPolylineClick` event will be triggered.
+   * Defaults to 20 meters.
+   */
+  polylineTapThreshold?: number;
 };
 
 /**
@@ -119,6 +318,102 @@ export type AppleMapsAnnotation = {
 /**
  * @platform ios
  */
+export type AppleMapsPolyline = {
+  /**
+   * The unique identifier for the polyline. This can be used to identify the clicked polyline in the `onPolylineClick` event.
+   */
+  id?: string;
+  /**
+   * The coordinates of the polyline.
+   */
+  coordinates: Coordinates[];
+  /**
+   * The color of the polyline.
+   */
+  color?: ProcessedColorValue | string;
+  /**
+   * The width of the polyline.
+   */
+  width?: number;
+  /**
+   * The style of the polyline.
+   */
+  contourStyle?: AppleMapsContourStyle;
+};
+
+/**
+ * @platform ios
+ */
+export type AppleMapsCircle = {
+  /**
+   * The unique identifier for the circle. This can be used to identify the clicked circle in the `onCircleClick` event.
+   */
+  id?: string;
+
+  /**
+   * The coordinates of the circle.
+   */
+  center: Coordinates;
+
+  /**
+   * The radius of the circle (in meters).
+   */
+  radius: number;
+
+  /**
+   * The color of the circle.
+   */
+  color?: ProcessedColorValue | string;
+
+  /**
+   * The width of the circle.
+   */
+  width?: number;
+
+  /**
+   * The color of the circle line.
+   */
+  lineColor?: ProcessedColorValue | string;
+
+  /**
+   * The width of the circle line.
+   */
+  lineWidth?: number;
+};
+
+/**
+ * @platform ios
+ */
+export type AppleMapsPolygon = {
+  /**
+   * The unique identifier for the polygon. This can be used to identify the clicked polygon in the `onPolygonClick` event.
+   */
+  id?: string;
+
+  /**
+   * The coordinates of the circle.
+   */
+  coordinates: Coordinates[];
+
+  /**
+   * The color of the polygon.
+   */
+  color?: ProcessedColorValue | string;
+
+  /**
+   * The width of the polygon.
+   */
+  lineWidth?: number;
+
+  /**
+   * The color of the polygon.
+   */
+  lineColor?: ProcessedColorValue | string;
+};
+
+/**
+ * @platform ios
+ */
 export type AppleMapsViewProps = {
   ref?: Ref<AppleMapsViewType>;
   style?: StyleProp<ViewStyle>;
@@ -132,6 +427,21 @@ export type AppleMapsViewProps = {
    * The array of markers to display on the map.
    */
   markers?: AppleMapsMarker[];
+
+  /**
+   * The array of polylines to display on the map.
+   */
+  polylines?: AppleMapsPolyline[];
+
+  /**
+   * The array of polygons to display on the map.
+   */
+  polygons?: AppleMapsPolygon[];
+
+  /**
+   * The array of circles to display on the map.
+   */
+  circles?: AppleMapsCircle[];
 
   /**
    * The array of annotations to display on the map.
@@ -156,8 +466,27 @@ export type AppleMapsViewProps = {
 
   /**
    * Lambda invoked when the marker is clicked
+   * @platform ios 18.0+
    */
   onMarkerClick?: (event: AppleMapsMarker) => void;
+
+  /**
+   * Lambda invoked when the polyline is clicked
+   * @platform ios 18.0+
+   */
+  onPolylineClick?: (event: AppleMapsPolyline) => void;
+
+  /**
+   * Lambda invoked when the polygon is clicked
+   * @platform ios 18.0+
+   */
+  onPolygonClick?: (event: AppleMapsPolygon) => void;
+
+  /**
+   * Lambda invoked when the circle is clicked
+   * @platform ios 18.0+
+   */
+  onCircleClick?: (event: AppleMapsCircle) => void;
 
   /**
    * Lambda invoked when the map was moved by the user.
@@ -181,4 +510,11 @@ export type AppleMapsViewType = {
    * @param config New camera postion.
    */
   setCameraPosition: (config?: CameraPosition) => void;
+
+  /**
+   * Opens the look around view at specified coordinates.
+   *
+   * @param coordinates The coordinates of the location to open the look around view at.
+   */
+  openLookAroundAsync: (coordinates: Coordinates) => Promise<void>;
 };

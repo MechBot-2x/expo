@@ -9,6 +9,7 @@ import * as Npm from './Npm';
 const ANDROID_DIR = Directories.getExpoGoAndroidDir();
 const IOS_DIR = Directories.getExpoGoIosDir();
 const PACKAGES_DIR = Directories.getPackagesDir();
+const TEMPLATES_DIR = Directories.getTemplatesDir();
 
 /**
  * Cached list of packages or `null` if they haven't been loaded yet. See `getListOfPackagesAsync`.
@@ -75,6 +76,12 @@ export type ExpoModuleConfig = {
   };
   android?: {
     subdirectory?: string;
+    name?: string;
+    publication?: any;
+    projects?: {
+      name?: string;
+      publication?: any;
+    }[];
   };
 };
 
@@ -84,13 +91,13 @@ export type ExpoModuleConfig = {
 export class Package {
   path: string;
   packageJson: PackageJson;
-  expoModuleConfig: ExpoModuleConfig;
+  expoModuleConfig?: ExpoModuleConfig;
   packageView?: Npm.PackageViewType | null;
 
   constructor(rootPath: string, packageJson?: PackageJson) {
     this.path = rootPath;
     this.packageJson = packageJson || require(path.join(rootPath, 'package.json'));
-    this.expoModuleConfig = readExpoModuleConfigJson(rootPath);
+    this.expoModuleConfig = readExpoModuleConfigJson(this.expoModulesConfigPath);
   }
 
   get hasPlugin(): boolean {
@@ -190,6 +197,10 @@ export class Package {
 
   get changelogPath(): string {
     return path.join(this.path, 'CHANGELOG.md');
+  }
+
+  get expoModulesConfigPath(): string {
+    return path.join(this.path, 'expo-module.config.json');
   }
 
   isExpoModule() {
@@ -376,6 +387,10 @@ export async function getListOfPackagesAsync(): Promise<Package[]> {
         '**/__fixtures__/**',
       ],
     });
+    const templatesPaths = await glob('**/package.json', {
+      cwd: TEMPLATES_DIR,
+      ignore: ['**/node_modules/**', '**/__tests__/**', '**/__mocks__/**', '**/__fixtures__/**'],
+    });
     cachedPackages = paths
       .map((packageJsonPath) => {
         const fullPackageJsonPath = path.join(PACKAGES_DIR, packageJsonPath);
@@ -384,17 +399,23 @@ export async function getListOfPackagesAsync(): Promise<Package[]> {
 
         return new Package(packagePath, packageJson);
       })
+      .concat(
+        templatesPaths.map((packageJsonPath) => {
+          const fullPackageJsonPath = path.join(TEMPLATES_DIR, packageJsonPath);
+          const packagePath = path.dirname(fullPackageJsonPath);
+          const packageJson = require(fullPackageJsonPath);
+
+          return new Package(packagePath, packageJson);
+        })
+      )
       .filter((pkg) => !!pkg.packageName);
   }
   return cachedPackages;
 }
 
-function readExpoModuleConfigJson(dir: string) {
-  const expoModuleConfigJsonPath = path.join(dir, 'expo-module.config.json');
-  const expoModuleConfigJsonExists = fs.existsSync(expoModuleConfigJsonPath);
-  const unimoduleJsonPath = path.join(dir, 'unimodule.json');
+function readExpoModuleConfigJson(expoModuleConfigJsonPath: string) {
   try {
-    return require(expoModuleConfigJsonExists ? expoModuleConfigJsonPath : unimoduleJsonPath);
+    return require(expoModuleConfigJsonPath);
   } catch {
     return null;
   }

@@ -5,7 +5,9 @@ package expo.modules.maps
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.location.Location
+import androidx.compose.ui.geometry.Offset
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.ComposeMapColorScheme
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
@@ -16,6 +18,7 @@ import expo.modules.kotlin.records.Record
 import expo.modules.kotlin.sharedobjects.SharedRef
 import expo.modules.kotlin.types.Either
 import expo.modules.kotlin.types.Enumerable
+import java.util.UUID
 
 data class SetCameraPositionConfig(
   @Field
@@ -44,7 +47,20 @@ data class Coordinates(
   }
 }
 
+data class AnchorRecord(
+  @Field
+  val x: Float = 0.5f,
+
+  @Field
+  val y: Float = 1.0f
+) : Record {
+  fun toOffset() = Offset(x = x, y = y)
+}
+
 data class MarkerRecord(
+  @Field
+  val id: String = UUID.randomUUID().toString(),
+
   @Field
   val coordinates: Coordinates = Coordinates(),
 
@@ -61,7 +77,47 @@ data class MarkerRecord(
   val icon: Either<SharedRef<Drawable>, SharedRef<Bitmap>>? = null,
 
   @Field
-  val showCallout: Boolean = true
+  val showCallout: Boolean = true,
+
+  @Field
+  val anchor: AnchorRecord = AnchorRecord(),
+
+  @Field
+  val zIndex: Float = 0.0f
+) : Record
+
+data class PolylineRecord(
+  @Field
+  val id: String = UUID.randomUUID().toString(),
+
+  @Field
+  val coordinates: List<Coordinates> = emptyList(),
+
+  @Field
+  val geodesic: Boolean = false,
+
+  @Field
+  val color: Int = 0xFF0000FF.toInt(),
+
+  @Field
+  val width: Float = 10f
+) : Record
+
+data class PolygonRecord(
+  @Field
+  val id: String = UUID.randomUUID().toString(),
+
+  @Field
+  val coordinates: List<Coordinates> = emptyList(),
+
+  @Field
+  val lineColor: Int = 0xFF0000FF.toInt(),
+
+  @Field
+  val lineWidth: Float = 10f,
+
+  @Field
+  val color: Int = 0xFF0000FF.toInt()
 ) : Record
 
 data class CameraPositionRecord(
@@ -70,6 +126,26 @@ data class CameraPositionRecord(
 
   @Field
   val zoom: Float = 10f
+) : Record
+
+data class CircleRecord(
+  @Field
+  val id: String = UUID.randomUUID().toString(),
+
+  @Field
+  val center: Coordinates = Coordinates(),
+
+  @Field
+  val radius: Double = 200.0,
+
+  @Field
+  val color: Int = 0x7F0000FF,
+
+  @Field
+  val lineColor: Int? = null,
+
+  @Field
+  val lineWidth: Float? = null
 ) : Record
 
 data class UserLocationRecord(
@@ -134,6 +210,11 @@ enum class MapTypeEnum : Enumerable {
   }
 }
 
+data class MapStyleOptionsRecord(
+  @Field
+  val json: String
+) : Record
+
 data class MapPropertiesRecord(
   @Field
   val isBuildingEnabled: Boolean = false,
@@ -144,8 +225,9 @@ data class MapPropertiesRecord(
   @Field
   val isTrafficEnabled: Boolean = false,
   // TODO(@lukmccall): supports these properties
-//  val latLngBoundsForCameraTarget: LatLngBounds? = null,
-//  val mapStyleOptions: MapStyleOptions? = null,
+  //  val latLngBoundsForCameraTarget: LatLngBounds? = null,
+  @Field
+  val mapStyleOptions: MapStyleOptionsRecord? = null,
   @Field
   val mapType: MapTypeEnum = MapTypeEnum.NORMAL,
   @Field
@@ -154,11 +236,13 @@ data class MapPropertiesRecord(
   val minZoomPreference: Float = 3.0f
 ) : Record {
   fun toMapProperties(): MapProperties {
+    val mapStyleOptionsParsed = mapStyleOptions?.json?.let { MapStyleOptions(it) }
     return MapProperties(
       isBuildingEnabled = isBuildingEnabled,
       isIndoorEnabled = isIndoorEnabled,
       isMyLocationEnabled = isMyLocationEnabled,
       isTrafficEnabled = isTrafficEnabled,
+      mapStyleOptions = mapStyleOptionsParsed,
       mapType = mapType.toMapType(),
       maxZoomPreference = maxZoomPreference,
       minZoomPreference = minZoomPreference
@@ -200,4 +284,42 @@ data class CameraMoveEvent(
 
   @Field
   val bearing: Float
+) : Record
+
+data class MapClickEvent(
+  @Field
+  val coordinates: Coordinates
+) : Record
+
+data class CameraPositionStreetViewRecord(
+  @Field
+  val coordinates: Coordinates = Coordinates(),
+
+  @Field
+  val zoom: Float = 0f,
+
+  @Field
+  val tilt: Float = 0f,
+
+  @Field
+  val bearing: Float = 0f
+) : Record
+
+data class MapContentPaddingRecord(
+  @Field
+  val start: Float = 0f,
+
+  @Field
+  val end: Float = 0f,
+
+  @Field
+  val top: Float = 0f,
+
+  @Field
+  val bottom: Float = 0f
+) : Record
+
+data class MapOptionsRecord(
+  @Field
+  val mapId: String? = null
 ) : Record

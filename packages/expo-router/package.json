@@ -1,6 +1,6 @@
 {
   "name": "expo-router",
-  "version": "4.0.9",
+  "version": "5.0.7",
   "description": "Expo Router is a file-based router for React Native and web applications.",
   "author": "650 Industries, Inc.",
   "license": "MIT",
@@ -35,6 +35,8 @@
     "html.js",
     "index.d.ts",
     "ios",
+    "unstable-native-tabs.js",
+    "unstable-native-tabs.d.ts",
     "node",
     "plugin",
     "rsc",
@@ -61,7 +63,7 @@
   },
   "homepage": "https://docs.expo.dev/routing/introduction/",
   "scripts": {
-    "build": "expo-module build",
+    "build": "bash -c 'if [ -z \"$1\" ]; then expo-module build -p tsconfig.json; else expo-module build \"$1\"; fi' --",
     "clean": "expo-module clean",
     "lint": "expo-module lint",
     "test": "expo-module test",
@@ -75,16 +77,36 @@
     "expo"
   ],
   "peerDependencies": {
-    "@react-navigation/drawer": "^7.1.1",
+    "@react-navigation/drawer": "^7.3.9",
+    "@testing-library/jest-native": ">= 5.0.0",
+    "@testing-library/react-native": ">= 12.0.0",
     "expo": "*",
     "expo-constants": "*",
     "expo-linking": "*",
+    "react": "*",
+    "react-dom": "*",
+    "react-native": "*",
+    "react-native-gesture-handler": "*",
     "react-native-reanimated": "*",
-    "react-native-safe-area-context": "*",
-    "react-native-screens": "*"
+    "react-native-safe-area-context": ">= 4.0.0",
+    "react-native-screens": "*",
+    "react-native-web": "*",
+    "react-server-dom-webpack": ">= 19.0.0"
   },
   "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    },
+    "react-native-gesture-handler": {
+      "optional": true
+    },
     "react-native-reanimated": {
+      "optional": true
+    },
+    "react-native-web": {
+      "optional": true
+    },
+    "react-server-dom-webpack": {
       "optional": true
     },
     "@react-navigation/drawer": {
@@ -92,31 +114,43 @@
     },
     "@testing-library/jest-native": {
       "optional": true
+    },
+    "@testing-library/react-native": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "@react-navigation/drawer": "^7.1.1",
+    "@react-navigation/drawer": "^7.3.9",
     "@testing-library/jest-native": "^5.4.2",
     "@testing-library/react": "^15.0.7",
     "@testing-library/react-native": "^13.1.0",
+    "@types/semver": "^7.7.0",
     "immer": "^10.1.1",
-    "react-server-dom-webpack": "19.0.0-rc-6230622a1a-20240610",
+    "react-server-dom-webpack": "~19.0.0",
     "tsd": "^0.28.1"
   },
   "dependencies": {
-    "@expo/metro-runtime": "4.0.0",
-    "@expo/server": "^0.5.0",
-    "@radix-ui/react-slot": "1.0.1",
-    "@react-navigation/bottom-tabs": "^7.2.0",
-    "@react-navigation/native": "^7.0.14",
-    "@react-navigation/native-stack": "^7.2.0",
+    "@expo/metro-runtime": "5.0.4",
+    "@expo/server": "^0.6.2",
+    "@radix-ui/react-slot": "1.2.0",
+    "@react-navigation/bottom-tabs": "^7.3.10",
+    "@react-navigation/native": "^7.1.6",
+    "@react-navigation/native-stack": "^7.3.10",
     "client-only": "^0.0.1",
+    "debug": "^4.3.4",
+    "escape-string-regexp": "^4.0.0",
+    "fast-deep-equal": "^3.1.3",
     "invariant": "^2.2.4",
+    "nanoid": "^3.3.8",
     "react-fast-compare": "^3.2.2",
     "react-native-is-edge-to-edge": "^1.1.6",
+    "query-string": "^7.1.3",
     "schema-utils": "^4.0.1",
     "semver": "~7.6.3",
     "server-only": "^0.0.1",
-    "shallowequal": "^1.1.0"
+    "sf-symbols-typescript": "^2.1.0",
+    "shallowequal": "^1.1.0",
+    "use-latest-callback": "^0.2.1",
+    "vaul": "^1.1.2"
   }
 }

@@ -26,6 +26,8 @@ class ExpoUIModule : Module() {
       Events("onValueChanged")
     }
 
+    View(ShapeView::class)
+
     View(DateTimePickerView::class) {
       Events("onDateSelected")
     }
@@ -41,8 +43,28 @@ class ExpoUIModule : Module() {
 
     View(ProgressView::class)
 
-    View(TextInputView::class)  {
+    View(TextInputView::class) {
       Events("onValueChanged")
+      Prop("defaultValue", "") { view: TextInputView, text: String ->
+        if (view.text == null) {
+          view.text = text
+        }
+      }
+      AsyncFunction("setText") { view: TextInputView, text: String ->
+        view.text = text
+      }
+    }
+
+    View(RowView::class)
+    View(ColumnView::class)
+    View(ContainerView::class)
+    View(TextView::class)
+
+    View(AlertDialogView::class) {
+      Events(
+        "onDismissPressed",
+        "onConfirmPressed"
+      )
     }
   }
 }

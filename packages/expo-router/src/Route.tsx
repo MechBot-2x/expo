@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ComponentType, type PropsWithChildren } from 'react';
+import { createContext, use, type ComponentType, type PropsWithChildren } from 'react';
 
 import { getContextKey } from './matchers';
 import { sortRoutesWithInitial, sortRoutes } from './sortRoutes';
@@ -18,9 +18,18 @@ export type LoadedRoute = {
   }) => Record<string, string | string[]>[];
 };
 
+export type LoadedMiddleware = Pick<LoadedRoute, 'default' | 'unstable_settings'>;
+
+export type MiddlewareNode = {
+  /** Context Module ID. Used to resolve the middleware module */
+  contextKey: string;
+  /** Loads middleware into memory. Returns the exports from +middleware.ts */
+  loadRoute: () => Partial<LoadedMiddleware>;
+};
+
 export type RouteNode = {
   /** The type of RouteNode */
-  type: 'route' | 'api' | 'layout';
+  type: 'route' | 'api' | 'layout' | 'redirect' | 'rewrite';
   /** Load a route into memory. Returns the exports from a route. */
   loadRoute: () => Partial<LoadedRoute>;
   /** Loaded initial route name. */
@@ -33,12 +42,20 @@ export type RouteNode = {
   route: string;
   /** Context Module ID, used for matching children. */
   contextKey: string;
+  /** Redirect Context Module ID, used for matching children. */
+  destinationContextKey?: string;
+  /** Is the redirect permanent. */
+  permanent?: boolean;
   /** Added in-memory */
   generated?: boolean;
   /** Internal screens like the directory or the auto 404 should be marked as internal. */
   internal?: boolean;
   /** File paths for async entry modules that should be included in the initial chunk request to ensure the runtime JavaScript matches the statically rendered HTML representation. */
   entryPoints?: string[];
+  /** HTTP methods for this route. If undefined, assumed to be ['GET'] */
+  methods?: string[];
+  /** Middleware function for server-side request processing. Only present on the root route node. */
+  middleware?: MiddlewareNode;
 };
 
 const CurrentRouteContext = createContext<RouteNode | null>(null);
@@ -52,7 +69,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 /** Return the RouteNode at the current contextual boundary. */
 export function useRouteNode(): RouteNode | null {
-  return useContext(CurrentRouteContext);
+  return use(CurrentRouteContext);
 }
 
 export function useContextKey(): string {

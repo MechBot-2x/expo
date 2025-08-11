@@ -44,7 +44,7 @@ jobs:
         with:
           submodules: true
       - name: 🔨 Switch to Xcode 16.0
-        run: sudo xcode-select --switch /Applications/Xcode_16.0.app
+        run: sudo xcode-select --switch /Applications/Xcode_16.4.app
       - name: 🔓 Decrypt secrets if possible
         uses: ./.github/actions/expo-git-decrypt
         with:
@@ -69,6 +69,9 @@ jobs:
       - name: 🥥 Install CocoaPods in `apps/native-tests/ios`
         if: steps.expo-caches.outputs.bare-expo-pods-hit != 'true'
         run: pod install
+        env:
+          RCT_USE_PREBUILT_RNCORE: 1
+          RCT_USE_RN_DEP: 1
         working-directory: apps/native-tests/ios
       - name: 🧪 Run native iOS unit tests
         timeout-minutes: 60

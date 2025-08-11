@@ -2,7 +2,7 @@
 
 import ExpoModulesCore
 
-public class ExpoUIModule: Module {
+public final class ExpoUIModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ExpoUI")
 
@@ -17,8 +17,33 @@ public class ExpoUIModule: Module {
     View(ExpoUI.ContextMenuPreview.self)
     View(ColorPickerView.self)
     View(DateTimePickerView.self)
-    View(TextInputView.self)
+    View(TextFieldView.self) {
+      AsyncFunction("setText") { (view: TextFieldView, text: String) in
+        view.setText(text)
+      }
+    }
+    View(SecureFieldView.self) {
+      AsyncFunction("setText") { (view: SecureFieldView, text: String) in
+        view.setText(text)
+      }
+    }
     View(ProgressView.self)
     View(GaugeView.self)
+    View(ListView.self)
+    View(LabelView.self)
+    View(ShareLinkView.self)
+    View(HostView.self)
+
+    // Preview components in the "primitives" exports
+    View(FormView.self)
+    View(HStackView.self)
+    View(VStackView.self)
+    View(SectionPrimitiveView.self)
+    View(TextView.self)
+    View(ImageView.self)
+    View(SpacerView.self)
+    View(GroupView.self)
+    View(DisclosureGroupView.self)
+    View(ExpoUI.ContentUnavailableView.self)
   }
 }

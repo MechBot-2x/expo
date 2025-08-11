@@ -1,5 +1,6 @@
 import { getConfig } from '@expo/config';
 import type { Platform } from '@expo/config';
+import { SerialAsset } from '@expo/metro-config/build/serializer/serializerAssets';
 import assert from 'assert';
 import chalk from 'chalk';
 import fs from 'fs';
@@ -14,7 +15,11 @@ import {
   transformDomEntryForMd5Filename,
 } from './exportDomComponents';
 import { assertEngineMismatchAsync, isEnableHermesManaged } from './exportHermes';
-import { exportApiRoutesStandaloneAsync, exportFromServerAsync } from './exportStaticAsync';
+import {
+  exportApiRoutesStandaloneAsync,
+  exportFromServerAsync,
+  injectScriptTags,
+} from './exportStaticAsync';
 import { getVirtualFaviconAssetsAsync } from './favicon';
 import { getPublicExpoManifestAsync } from './getPublicExpoManifest';
 import { copyPublicFolderAsync } from './publicFolder';
@@ -24,6 +29,7 @@ import {
   BundleOutput,
   getFilesFromSerialAssets,
   persistMetroFilesAsync,
+  BundleAssetWithFileHashes,
 } from './saveAssets';
 import { createAssetMap } from './writeContents';
 import * as Log from '../log';
@@ -52,6 +58,7 @@ export async function exportAppAsync(
     bytecode,
     maxWorkers,
     skipSSG,
+    hostedNative,
   }: Pick<
     Options,
     | 'dumpAssetmap'
@@ -64,6 +71,7 @@ export async function exportAppAsync(
     | 'bytecode'
     | 'maxWorkers'
     | 'skipSSG'
+    | 'hostedNative'
   >
 ): Promise<void> {
   // Force the environment during export and do not allow overriding it.
@@ -167,32 +175,51 @@ export async function exportAppAsync(
             await assertEngineMismatchAsync(projectRoot, exp, platform);
           }
 
-          // Run metro bundler and create the JS bundles/source maps.
-          const bundle = await devServer.nativeExportBundleAsync(
-            {
-              platform,
-              splitChunks:
-                !env.EXPO_NO_BUNDLE_SPLITTING &&
-                ((devServer.isReactServerComponentsEnabled && !bytecode) || platform === 'web'),
-              mainModuleName: getEntryWithServerRoot(projectRoot, {
+          let bundle: {
+            artifacts: SerialAsset[];
+            assets: readonly BundleAssetWithFileHashes[];
+            files?: ExportAssetMap;
+          };
+
+          try {
+            // Run metro bundler and create the JS bundles/source maps.
+            bundle = await devServer.nativeExportBundleAsync(
+              exp,
+              {
                 platform,
-                pkg: projectConfig.pkg,
-              }),
-              mode: dev ? 'development' : 'production',
-              engine: isHermes ? 'hermes' : undefined,
-              serializerIncludeMaps: sourceMaps,
-              bytecode: bytecode && isHermes,
-              reactCompiler: !!exp.experiments?.reactCompiler,
-            },
-            files
-          );
+                splitChunks:
+                  !env.EXPO_NO_BUNDLE_SPLITTING &&
+                  ((devServer.isReactServerComponentsEnabled && !bytecode) || platform === 'web'),
+                mainModuleName: getEntryWithServerRoot(projectRoot, {
+                  platform,
+                  pkg: projectConfig.pkg,
+                }),
+                mode: dev ? 'development' : 'production',
+                engine: isHermes ? 'hermes' : undefined,
+                serializerIncludeMaps: sourceMaps,
+                bytecode: bytecode && isHermes,
+                reactCompiler: !!exp.experiments?.reactCompiler,
+                hosted: hostedNative,
+              },
+              files
+            );
+          } catch (error) {
+            Log.log('');
+            if (error instanceof Error) {
+              Log.exception(error);
+            } else {
+              Log.error('Failed to bundle the app');
+              Log.log(error as any);
+            }
+            process.exit(1);
+          }
 
           bundles[platform] = bundle;
 
           getFilesFromSerialAssets(bundle.artifacts, {
             includeSourceMaps: sourceMaps,
             files,
-            isServerHosted: devServer.isReactServerComponentsEnabled,
+            isServerHosted: devServer.isReactServerComponentsEnabled || hostedNative,
           });
 
           // TODO: Remove duplicates...
@@ -230,6 +257,7 @@ export async function exportAppAsync(
                 htmlOutputName,
               });
               domComponentAssetsMetadata[platform] = [
+                ...(domComponentAssetsMetadata[platform] || []),
                 ...(await addDomBundleToMetadataAsync(platformDomComponentsBundle)),
                 ...transformDomEntryForMd5Filename({
                   files,
@@ -295,6 +323,7 @@ export async function exportAppAsync(
         outputDir: outputPath,
         bundles,
         baseUrl,
+        hostedNative,
       });
 
       if (dumpAssetmap) {

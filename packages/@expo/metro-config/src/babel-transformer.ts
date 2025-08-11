@@ -7,7 +7,7 @@
  */
 // A fork of the upstream babel-transformer that uses Expo-specific babel defaults
 // and adds support for web and Node.js environments via `isServer` on the Babel caller.
-import type { BabelTransformer, BabelTransformerArgs } from 'metro-babel-transformer';
+import type { BabelTransformer, BabelTransformerArgs } from '@expo/metro/metro-babel-transformer';
 import assert from 'node:assert';
 
 import type { TransformOptions } from './babel-core';
@@ -15,6 +15,7 @@ import { loadBabelConfig } from './loadBabelConfig';
 import { transformSync } from './transformSync';
 
 export type ExpoBabelCaller = TransformOptions['caller'] & {
+  metroSourceType?: 'script' | 'module' | 'asset';
   supportsReactCompiler?: boolean;
   isReactServer?: boolean;
   isHMREnabled?: boolean;
@@ -113,6 +114,10 @@ function getBabelCaller({
     isNodeModule,
 
     isHMREnabled: options.hot,
+
+    // Pass on the input type. Scripts shall be transformed to avoid dependencies (imports/requires),
+    // for example by polyfills or Babel runtime
+    metroSourceType: options.type,
 
     // Set the standard Babel flag to disable ESM transformations.
     supportsStaticESM:

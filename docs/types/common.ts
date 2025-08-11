@@ -45,7 +45,10 @@ export type NavigationRoute = {
   sidebarTitle?: string;
   weight?: number;
   isNew?: boolean;
+  isAlpha?: boolean;
   isDeprecated?: boolean;
+  inExpoGo?: boolean;
+  hasVideoLink?: boolean;
   children?: NavigationRouteWithSection[];
 };
 
@@ -65,3 +68,10 @@ export type PlatformName =
   | 'macos'
   | 'tvos'
   | string;
+
+export type WithTestRequire = {
+  /**
+   * @internal For test usage only.
+   */
+  testRequire?: any;
+};

@@ -9,6 +9,7 @@
  * https://github.com/jestjs/jest/blob/d1a2ed7fea4bdc19836274cd810c8360e3ab62f3/packages/jest-resolve/src/defaultResolver.ts#L1
  */
 import type { JSONObject as PackageJSON } from '@expo/json-file';
+import type { CustomResolutionContext } from '@expo/metro/metro-resolver';
 import assert from 'assert';
 import { dirname, isAbsolute, resolve as pathResolve } from 'path';
 import { sync as resolveSync, SyncOpts as UpstreamResolveOptions } from 'resolve';
@@ -36,6 +37,7 @@ type PackageFilter = (pkg: PackageJSON, file: string, dir: string) => PackageJSO
  */
 type PathFilter = (pkg: PackageJSON, path: string, relativePath: string) => string;
 
+// TODO(@kitten): This probably has overlap with an @expo/metro type
 type ResolverOptions = {
   /** Directory to begin resolving from. */
   basedir: string;
@@ -70,7 +72,7 @@ type ResolverOptions = {
 
   blockList: RegExp[];
 
-  getPackageForModule: import('metro-resolver').CustomResolutionContext['getPackageForModule'];
+  getPackageForModule: CustomResolutionContext['getPackageForModule'];
 } & Pick<
   UpstreamResolveOptions,
   | 'readPackageSync'
@@ -168,7 +170,7 @@ function getPathInModule(path: string, options: UpstreamResolveOptionsWithCondit
 
       if (pkg.exports) {
         throw new Error(
-          "`exports` exists, but no results - this is a bug in Expo CLI's Metro resolver. Please report an issue"
+          "`exports` exists, but no results - this is a bug in Expo CLI's Metro resolver. Report an issue: https://github.com/expo/expo/issues"
         );
       }
     }
@@ -201,7 +203,7 @@ function getPathInModule(path: string, options: UpstreamResolveOptionsWithCondit
 
   if (pkg.exports) {
     throw new Error(
-      "`exports` exists, but no results - this is a bug in Expo CLI's Metro resolver. Please report an issue"
+      "`exports` exists, but no results - this is a bug in Expo CLI's Metro resolver. Report an issue: https://github.com/expo/expo/issues"
     );
   }
 

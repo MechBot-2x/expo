@@ -19,8 +19,10 @@ export interface PluginConfigType {
  */
 export interface PluginConfigTypeAndroid {
     /**
-     * @deprecated Use app config [`newArchEnabled`](https://docs.expo.dev/versions/latest/config/app/#newarchenabled) instead.
-     * Enable React Native new architecture for Android platform.
+     * Enable React Native New Architecture for Android platform.
+     *
+     * @deprecated Use [`newArchEnabled`](https://docs.expo.dev/versions/latest/config/app/#newarchenabled) in
+     * app config file instead.
      */
     newArchEnabled?: boolean;
     /**
@@ -113,7 +115,8 @@ export interface PluginConfigTypeAndroid {
     /**
      * Indicates whether the app intends to use cleartext network traffic.
      *
-     * @default false
+     * For Android 8 and below, the default platform-specific value is `true`.
+     * For Android 9 and above, the default platform-specific value is `false`.
      *
      * @see [Android documentation](https://developer.android.com/guide/topics/manifest/application-element#usesCleartextTraffic)
      */
@@ -139,6 +142,41 @@ export interface PluginConfigTypeAndroid {
      * @see [Android documentation](https://developer.android.com/develop/ui/views/theming/darktheme)
      */
     useDayNightTheme?: boolean;
+    /**
+     * Enable JavaScript Bundle compression. Turning this on will result in a smaller APK size but may have slower app startup times.
+     *
+     * @see [Faster App Startup](https://reactnative.dev/blog/2025/04/08/react-native-0.79#android-faster-app-startup)
+     *
+     * @default false
+     */
+    enableBundleCompression?: boolean;
+    buildReactNativeFromSource?: boolean;
+    /**
+     * Enable building React Native from source. Turning this on will significantly increase the build times.
+     * @deprecated Use `buildReactNativeFromSource` instead.
+     * @default false
+     */
+    buildFromSource?: boolean;
+    /**
+     * Override the default `reactNativeArchitectures` list of ABIs to build in **gradle.properties**.
+     *
+     * @see [Android documentation](https://developer.android.com/ndk/guides/abis) for more information.
+     *
+     * @example
+     * ```json
+     * ["arm64-v8a", "x86_64"]
+     * ```
+     *
+     * @default ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
+     */
+    buildArchs?: string[];
+    /**
+     * Specifies a single Maven repository to be used as an exclusive mirror for all dependency resolution.
+     * When set, all other Maven repositories will be ignored and only this repository will be used to fetch dependencies.
+     *
+     * @see [Using a Maven Mirror](https://reactnative.dev/docs/build-speed#using-a-maven-mirror-android-only)
+     */
+    exclusiveMavenMirror?: string;
 }
 /**
  * @platform android
@@ -161,25 +199,49 @@ export interface AndroidMavenRepository {
     authentication?: 'basic' | 'digest' | 'header';
 }
 /**
+ * The Android Maven repository credentials for basic authentication.
  * @platform android
  */
 export interface AndroidMavenRepositoryPasswordCredentials {
+    /**
+     * The credential value. You can also pass `"System.getenv('ENV_VAR_NAME')"` to get the value from an environment variable.
+     */
     username: string;
+    /**
+     * The credential value. You can also pass `"System.getenv('ENV_VAR_NAME')"` to get the value from an environment variable.
+     */
     password: string;
 }
 /**
+ * The Android Maven repository credentials that are passed as HTTP headers.
  * @platform android
  */
 export interface AndroidMavenRepositoryHttpHeaderCredentials {
+    /**
+     * The credential value. You can also pass `"System.getenv('ENV_VAR_NAME')"` to get the value from an environment variable.
+     */
     name: string;
+    /**
+     * The credential value. You can also pass `"System.getenv('ENV_VAR_NAME')"` to get the value from an environment variable.
+     */
     value: string;
 }
 /**
+ * The Android Maven repository credentials for AWS S3.
  * @platform android
  */
 export interface AndroidMavenRepositoryAWSCredentials {
+    /**
+     * The credential value. You can also pass `"System.getenv('ENV_VAR_NAME')"` to get the value from an environment variable.
+     */
     accessKey: string;
+    /**
+     * The credential value. You can also pass `"System.getenv('ENV_VAR_NAME')"` to get the value from an environment variable.
+     */
     secretKey: string;
+    /**
+     * The credential value. You can also pass `"System.getenv('ENV_VAR_NAME')"` to get the value from an environment variable.
+     */
     sessionToken?: string;
 }
 /**
@@ -192,8 +254,10 @@ export type AndroidMavenRepositoryCredentials = AndroidMavenRepositoryPasswordCr
  */
 export interface PluginConfigTypeIos {
     /**
-     * @deprecated Use app config [`newArchEnabled`](https://docs.expo.dev/versions/latest/config/app/#newarchenabled) instead.
-     * Enable React Native new architecture for iOS platform.
+     * Enable React Native New Architecture for iOS platform.
+     *
+     * @deprecated Use [`newArchEnabled`](https://docs.expo.dev/versions/latest/config/app/#newarchenabled) in
+     * app config file instead.
      */
     newArchEnabled?: boolean;
     /**
@@ -252,6 +316,22 @@ export interface PluginConfigTypeIos {
      * and [Apple's documentation on Privacy manifest files](https://developer.apple.com/documentation/bundleresources/privacy_manifest_files).
      */
     privacyManifestAggregationEnabled?: boolean;
+    /**
+     * Enables support for precompiled React Native iOS dependencies (`ReactNativeDependencies.xcframework`).
+     * This feature is available from React Native 0.80 and later when using the new architecture.
+     * From React Native 0.81, this setting will also use a precompiled React Native Core (`React.xcframework`).
+     *
+     * @default false
+     * @see React Expo blog for details: [Precompiled React Native for iOS: Faster builds are coming in 0.81](https://expo.dev/blog/precompiled-react-native-for-ios) for more information.
+     * @experimental
+     */
+    buildReactNativeFromSource?: boolean;
+    /**
+     * Enables support for prebuilt React Native iOS dependencies (`ReactNativeDependencies.xcframework`).
+     * This feature is available from React Native 0.80 and later.
+     * @deprecated Use `buildReactNativeFromSource` instead.
+     */
+    buildFromSource?: boolean;
 }
 /**
  * Interface representing extra CocoaPods dependency.
@@ -380,12 +460,13 @@ export interface PluginConfigTypeAndroidQueries {
      * Specifies an intent filter signature. Your app can discover other apps that have matching `<intent-filter>` elements.
      * These intents have restrictions compared to typical intent filter signatures.
      *
-     * @see [Android documentation](https://developer.android.com/training/package-visibility/declaring#intent-filter-signature) for details
+     * @see [Android documentation](https://developer.android.com/training/package-visibility/declaring#intent-filter-signature) for more information.
      */
     intent?: PluginConfigTypeAndroidQueriesIntent[];
     /**
      * Specifies one or more content provider authorities. Your app can discover other apps whose content providers use the specified authorities.
-     * There are some restrictions on the options that you can include in this `<provider>` element, compared to a typical `<provider>` manifest element. You may only specify the `android:authorities` attribute.
+     * There are some restrictions on the options that you can include in this `<provider>` element, compared to a typical `<provider>` manifest element.
+     * You may only specify the `android:authorities` attribute.
      */
     provider?: string[];
 }
@@ -394,7 +475,9 @@ export interface PluginConfigTypeAndroidQueries {
  */
 export interface PluginConfigTypeAndroidQueriesIntent {
     /**
-     * A string naming the action to perform. Usually one of the platform-defined values, such as `ACTION_SEND` or `ACTION_VIEW`.
+     * A string naming the action to perform. Usually one of the platform-defined values, such as `SEND` or `VIEW`.
+     *
+     * @see [Android documentation](https://developer.android.com/guide/topics/manifest/action-element) for more information.
      */
     action?: string;
     /**

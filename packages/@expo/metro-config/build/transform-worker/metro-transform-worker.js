@@ -15,18 +15,32 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.collectDependenciesForShaking = exports.getCacheKey = exports.transform = exports.applyImportSupport = exports.minifyCode = exports.InvalidRequireCallError = void 0;
+exports.minifyCode = exports.InvalidRequireCallError = void 0;
+exports.applyImportSupport = applyImportSupport;
+exports.transform = transform;
+exports.getCacheKey = getCacheKey;
+exports.collectDependenciesForShaking = collectDependenciesForShaking;
 /**
  * Copyright 2023-present 650 Industries (Expo). All rights reserved.
  * Copyright (c) Meta Platforms, Inc. and affiliates.
@@ -39,22 +53,20 @@ exports.collectDependenciesForShaking = exports.getCacheKey = exports.transform 
  */
 const core_1 = require("@babel/core");
 const generator_1 = __importDefault(require("@babel/generator"));
-const babylon = __importStar(require("@babel/parser"));
-const template_1 = __importDefault(require("@babel/template"));
-const t = __importStar(require("@babel/types"));
-const JsFileWrapping_1 = __importDefault(require("metro/src/ModuleGraph/worker/JsFileWrapping"));
-const generateImportNames_1 = __importDefault(require("metro/src/ModuleGraph/worker/generateImportNames"));
-const importLocationsPlugin_1 = require("metro/src/ModuleGraph/worker/importLocationsPlugin");
-const metro_cache_1 = require("metro-cache");
-const metro_cache_key_1 = __importDefault(require("metro-cache-key"));
-const metro_source_map_1 = require("metro-source-map");
-const metro_transform_plugins_1 = __importDefault(require("metro-transform-plugins"));
-const getMinifier_1 = __importDefault(require("metro-transform-worker/src/utils/getMinifier"));
+const JsFileWrapping_1 = __importDefault(require("@expo/metro/metro/ModuleGraph/worker/JsFileWrapping"));
+const generateImportNames_1 = __importDefault(require("@expo/metro/metro/ModuleGraph/worker/generateImportNames"));
+const importLocationsPlugin_1 = require("@expo/metro/metro/ModuleGraph/worker/importLocationsPlugin");
+const metro_cache_1 = require("@expo/metro/metro-cache");
+const metro_cache_key_1 = require("@expo/metro/metro-cache-key");
+const metro_source_map_1 = require("@expo/metro/metro-source-map");
+const metroTransformPlugins = __importStar(require("@expo/metro/metro-transform-plugins"));
+const getMinifier_1 = __importDefault(require("@expo/metro/metro-transform-worker/utils/getMinifier"));
 const node_assert_1 = __importDefault(require("node:assert"));
 const assetTransformer = __importStar(require("./asset-transformer"));
 const collect_dependencies_1 = __importStar(require("./collect-dependencies"));
 const count_lines_1 = require("./count-lines");
 const resolveOptions_1 = require("./resolveOptions");
+const import_export_plugin_1 = require("../transform-plugins/import-export-plugin");
 class InvalidRequireCallError extends Error {
     innerError;
     filename;
@@ -134,7 +146,7 @@ function applyUseStrictDirective(ast) {
     if (ast.program.sourceType === 'module' &&
         directives != null &&
         directives.findIndex((d) => d.value.value === 'use strict') === -1) {
-        directives.push(t.directive(t.directiveLiteral('use strict')));
+        directives.push(core_1.types.directive(core_1.types.directiveLiteral('use strict')));
     }
 }
 function applyImportSupport(ast, { filename, options, importDefault, importAll, collectLocations, }) {
@@ -159,13 +171,19 @@ function applyImportSupport(ast, { filename, options, importDefault, importAll, 
         // Ensure the iife "globals" don't have conflicting variables in the module.
         renameTopLevelModuleVariables, 
         //
-        [metro_transform_plugins_1.default.importExportPlugin, babelPluginOpts]);
+        [
+            import_export_plugin_1.importExportPlugin,
+            {
+                ...babelPluginOpts,
+                liveBindings: options.customTransformOptions?.liveBindings !== 'false',
+            },
+        ]);
     }
     // NOTE(EvanBacon): This can basically never be safely enabled because it doesn't respect side-effects and
     // has no ability to respect side-effects because the transformer hasn't collected all dependencies yet.
     if (options.inlineRequires) {
         plugins.push([
-            metro_transform_plugins_1.default.inlineRequiresPlugin,
+            metroTransformPlugins.inlineRequiresPlugin,
             {
                 ...babelPluginOpts,
                 ignoredRequires: options.nonInlinedRequires,
@@ -200,7 +218,6 @@ function applyImportSupport(ast, { filename, options, importDefault, importAll, 
     }
     return { ast };
 }
-exports.applyImportSupport = applyImportSupport;
 function performConstantFolding(ast, { filename }) {
     // NOTE(kitten): Any Babel helpers that have been added (`path.hub.addHelper(...)`) will usually not have any
     // references, and hence the `constantFoldingPlugin` below will remove them.
@@ -227,7 +244,7 @@ function performConstantFolding(ast, { filename }) {
         configFile: false,
         comments: true,
         filename,
-        plugins: [clearProgramScopePlugin, metro_transform_plugins_1.default.constantFoldingPlugin],
+        plugins: [clearProgramScopePlugin, metroTransformPlugins.constantFoldingPlugin],
         sourceMaps: false,
         // NOTE(kitten): In Metro, this is also false, but only works because the prior run of `transformFromAstSync` was always
         // running with `cloneInputAst: true`.
@@ -252,7 +269,7 @@ async function transformJS(file, { config, options }) {
     }
     // Transformers can output null ASTs (if they ignore the file). In that case
     // we need to parse the module source code to get their AST.
-    let ast = file.ast ?? babylon.parse(file.code, { sourceType: 'unambiguous' });
+    let ast = file.ast ?? nullthrows((0, core_1.parse)(file.code, { sourceType: 'unambiguous' }));
     // NOTE(EvanBacon): This can be really expensive on larger files. We should replace it with a cheaper alternative that just iterates and matches.
     const { importDefault, importAll } = (0, generateImportNames_1.default)(ast);
     // Add "use strict" if the file was parsed as a module, and the directive did
@@ -351,7 +368,7 @@ async function transformJS(file, { config, options }) {
         // TODO: If the module wrapping is disabled then the normalize function needs to change to account for not being in a body.
         !unstable_disableModuleWrapping) {
         // NOTE(EvanBacon): Simply pushing this function will mutate the AST, so it must run before the `generate` step!!
-        reserved.push(...metro_transform_plugins_1.default.normalizePseudoGlobals(wrappedAst, {
+        reserved.push(...metroTransformPlugins.normalizePseudoGlobals(wrappedAst, {
             reservedNames: reserved,
         }));
     }
@@ -514,7 +531,9 @@ function getBabelTransformArgs(file, { options, config, projectRoot }, plugins =
         options: {
             ...babelTransformerOptions,
             enableBabelRCLookup: config.enableBabelRCLookup,
-            enableBabelRuntime: config.enableBabelRuntime,
+            // NOTE(@kitten): This shouldn't be relevant via this code path. However, in case it does,
+            // this prevents us from adding imports/requires to @babel/runtime when we're transforming a script
+            enableBabelRuntime: options.type === 'script' ? false : config.enableBabelRuntime,
             hermesParser: config.hermesParser,
             projectRoot,
             publicPath: config.publicPath,
@@ -569,19 +588,19 @@ async function transform(config, projectRoot, filename, data, options) {
     };
     return transformJSWithBabel(file, context);
 }
-exports.transform = transform;
 function getCacheKey(config) {
     const { babelTransformerPath, minifierPath, ...remainingConfig } = config;
-    const filesKey = (0, metro_cache_key_1.default)([
+    // TODO(@kitten): We can now tie this into `@expo/metro`, which could also simply export a static version export
+    const filesKey = (0, metro_cache_key_1.getCacheKey)([
         require.resolve(babelTransformerPath),
         require.resolve(minifierPath),
-        require.resolve('metro-transform-worker/src/utils/getMinifier'),
+        require.resolve('@expo/metro/metro-transform-worker/utils/getMinifier'),
         require.resolve('./collect-dependencies'),
         require.resolve('./asset-transformer'),
         require.resolve('./resolveOptions'),
-        require.resolve('metro/src/ModuleGraph/worker/generateImportNames'),
-        require.resolve('metro/src/ModuleGraph/worker/JsFileWrapping'),
-        ...metro_transform_plugins_1.default.getTransformPluginCacheKeyFiles(),
+        require.resolve('@expo/metro/metro/ModuleGraph/worker/generateImportNames'),
+        require.resolve('@expo/metro/metro/ModuleGraph/worker/JsFileWrapping'),
+        ...metroTransformPlugins.getTransformPluginCacheKeyFiles(),
     ]);
     const babelTransformer = require(babelTransformerPath);
     return [
@@ -590,12 +609,11 @@ function getCacheKey(config) {
         babelTransformer.getCacheKey ? babelTransformer.getCacheKey() : '',
     ].join('$');
 }
-exports.getCacheKey = getCacheKey;
 /**
  * Produces a Babel template that transforms an "import(...)" call into a
  * "require(...)" call to the asyncRequire specified.
  */
-const makeShimAsyncRequireTemplate = template_1.default.expression(`require(ASYNC_REQUIRE_MODULE_PATH)`);
+const makeShimAsyncRequireTemplate = core_1.template.expression(`require(ASYNC_REQUIRE_MODULE_PATH)`);
 const disabledDependencyTransformer = {
     transformSyncRequire: (path) => { },
     transformImportMaybeSyncCall: () => { },
@@ -632,5 +650,4 @@ function collectDependenciesForShaking(ast, options) {
         dependencyTransformer: disabledDependencyTransformer,
     });
 }
-exports.collectDependenciesForShaking = collectDependenciesForShaking;
 //# sourceMappingURL=metro-transform-worker.js.map

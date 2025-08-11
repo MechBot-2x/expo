@@ -1,4 +1,5 @@
 import * as babel from '@babel/core';
+import constantFoldingPlugin from '@expo/metro/metro-transform-plugins/constant-folding-plugin';
 
 import preset from '..';
 import { minifyLikeMetroAsync } from './minify-util';
@@ -12,7 +13,7 @@ const DEFAULT_OPTS = {
   presets: [[preset]],
   plugins: [
     // Fold constants to emulate Metro
-    require('metro-transform-plugins/src/constant-folding-plugin.js'),
+    constantFoldingPlugin,
   ],
   sourceMaps: true,
   filename: 'unknown',
@@ -662,15 +663,16 @@ describe('SSR window check', () => {
     `;
 
     const res = babel.transform(src, options);
-    expect(res?.code).toMatch('if(true){');
+    expect(res?.code).toMatch("if(typeof window!=='undefined'){\nconsole.log('ssr.1');\n}");
 
-    // Code is fully minified away
-    expect((await minifyLikeMetroAsync(res!)).code).toBe(`console.log('ssr.1');`);
+    expect((await minifyLikeMetroAsync(res!)).code).toBe(
+      `'undefined'!=typeof window&&console.log('ssr.1');`
+    );
   });
-  it(`preserves typeof window usage in client bundles`, async () => {
+  it(`removes typeof window check in client bundles when minifyTypeOfWindow is enabled`, async () => {
     const options = {
       babelrc: false,
-      presets: [preset],
+      presets: [[preset, { minifyTypeofWindow: true }]],
       filename: 'unknown',
       // compact: true,
       // Make the snapshot easier to read
@@ -686,7 +688,7 @@ describe('SSR window check', () => {
     `;
 
     const res = babel.transform(src, options);
-    expect(res?.code).toMatch('if(true){');
+    expect(res?.code).toMatch("if(true){\nconsole.log('ssr.1');\n}");
 
     // Code is fully minified away
     expect((await minifyLikeMetroAsync(res!)).code).toBe(`console.log('ssr.1');`);

@@ -51,18 +51,18 @@ void NativeDatabaseBinding::registerNatives() {
 
 int NativeDatabaseBinding::sqlite3_changes() { return ::exsqlite3_changes(db); }
 
-int NativeDatabaseBinding::sqlite3_finalize_all_statement() {
+void NativeDatabaseBinding::sqlite3_finalize_all_statement() {
   ::exsqlite3_stmt *stmt = ::exsqlite3_next_stmt(db, nullptr);
-  int result = SQLITE_OK;
   while (stmt) {
     ::exsqlite3_stmt *nextStmt = ::exsqlite3_next_stmt(db, stmt);
     int ret = ::exsqlite3_finalize(stmt);
     if (ret != SQLITE_OK) {
-      result = ret;
+      std::string error = convertSqlLiteErrorToSTLString();
+      __android_log_print(ANDROID_LOG_WARN, TAG,
+                          "exsqlite3_finalize failed: %s", error.c_str());
     }
     stmt = nextStmt;
   }
-  return result;
 }
 
 int NativeDatabaseBinding::sqlite3_close() {
@@ -100,10 +100,10 @@ int64_t NativeDatabaseBinding::sqlite3_last_insert_rowid() {
 }
 
 int NativeDatabaseBinding::sqlite3_load_extension(
-    const std::string &libPath, const std::string &entryProc) {
+    const std::string &libPath, const std::string &entryPoint) {
   char *error;
-  int ret = ::exsqlite3_load_extension(db, libPath.c_str(), entryProc.c_str(),
-                                       &error);
+  auto *entryProc = !entryPoint.empty() ? entryPoint.c_str() : nullptr;
+  int ret = ::exsqlite3_load_extension(db, libPath.c_str(), entryProc, &error);
   if (ret != SQLITE_OK && error) {
     std::string errorString(error);
     ::exsqlite3_free(error);
@@ -191,15 +191,19 @@ int NativeDatabaseBinding::sqlite3_backup(
   return result;
 }
 
-jni::local_ref<jni::JString>
-NativeDatabaseBinding::convertSqlLiteErrorToString() {
+std::string NativeDatabaseBinding::convertSqlLiteErrorToSTLString() {
   int code = exsqlite3_errcode(db);
   const char *message = exsqlite3_errmsg(db);
   std::string result("Error code ");
   result += code;
   result += ": ";
   result += message;
-  return jni::make_jstring(result);
+  return result;
+}
+
+jni::local_ref<jni::JString>
+NativeDatabaseBinding::convertSqlLiteErrorToString() {
+  return jni::make_jstring(convertSqlLiteErrorToSTLString());
 }
 
 // static

@@ -62,6 +62,30 @@ export const MapsScreens = Platform.select({
       },
     },
     {
+      name: 'Polyline',
+      route: 'expo-maps/polyline',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./google/MapsPolylineScreen'));
+      },
+    },
+    {
+      name: 'Polygon',
+      route: 'expo-maps/polygon',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./google/MapsPolygonScreen'));
+      },
+    },
+    {
+      name: 'Circle',
+      route: 'expo-maps/circle',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./google/MapsCircleScreen'));
+      },
+    },
+    {
       name: 'Maps events',
       route: 'expo-maps/events',
       options: {},
@@ -78,11 +102,35 @@ export const MapsScreens = Platform.select({
       },
     },
     {
+      name: 'Maps content padding',
+      route: 'expo-maps/content-padding',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./google/MapsContentPaddingScreen'));
+      },
+    },
+    {
       name: 'Street view',
       route: 'expo-maps/street-view',
       options: {},
       getComponent() {
         return optionalRequire(() => require('./google/MapsStreetViewScreen'));
+      },
+    },
+    {
+      name: 'Maps map style options',
+      route: 'expo-maps/map-style-options',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./google/MapsMapStyleOptionsScreen'));
+      },
+    },
+    {
+      name: 'Maps map ID',
+      route: 'expo-maps/map-id',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./google/MapsMapIdScreen'));
       },
     },
   ],
@@ -101,6 +149,14 @@ export const MapsScreens = Platform.select({
       options: {},
       getComponent() {
         return optionalRequire(() => require('./apple/MapsCameraControlsScreen'));
+      },
+    },
+    {
+      name: 'Look around',
+      route: 'expo-maps/look-around',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./apple/MapsLookAroundScreen'));
       },
     },
     {
@@ -152,6 +208,30 @@ export const MapsScreens = Platform.select({
       },
     },
     {
+      name: 'Polyline',
+      route: 'expo-maps/polyline',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./apple/MapsPolylineScreen'));
+      },
+    },
+    {
+      name: 'Polygon',
+      route: 'expo-maps/polygon',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./apple/MapsPolygonScreen'));
+      },
+    },
+    {
+      name: 'Circle',
+      route: 'expo-maps/circle',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./apple/MapsCircleScreen'));
+      },
+    },
+    {
       name: 'Maps events',
       route: 'expo-maps/events',
       options: {},
@@ -165,6 +245,14 @@ export const MapsScreens = Platform.select({
       options: {},
       getComponent() {
         return optionalRequire(() => require('./apple/MapsImageRefIntegrationScreen'));
+      },
+    },
+    {
+      name: 'Points of interest',
+      route: 'expo-maps/points-of-interest',
+      options: {},
+      getComponent() {
+        return optionalRequire(() => require('./apple/MapsPointOfInterestScreen'));
       },
     },
   ],

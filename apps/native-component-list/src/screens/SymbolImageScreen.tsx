@@ -1,5 +1,5 @@
 import { SymbolView, SymbolViewProps, SFSymbol } from 'expo-symbols';
-import { PlatformColor, Text, View, StyleSheet, ScrollView } from 'react-native';
+import { PlatformColor, Text, View, StyleSheet, ScrollView, Platform } from 'react-native';
 
 import { Symbols } from '../constants';
 
@@ -94,6 +94,14 @@ function SymbolScales({ title, ...props }: RowProps) {
 }
 
 export default function SymbolImageScreen() {
+  if (Platform.OS !== 'ios') {
+    return (
+      <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.title}>Expo Symbols are not supported on {Platform.OS}</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ padding: 10, gap: 10 }}>
       <Text style={styles.title}>Use component directly</Text>
@@ -105,6 +113,12 @@ export default function SymbolImageScreen() {
         tintColor={PlatformColor('systemPurple')}
       />
       <SymbolRow title="Palette" colors={['red', 'green', 'blue']} type="palette" />
+      <SymbolRow
+        title="Palette RGB"
+        colors={['rgb(40, 186, 54)', 'rgb(21, 186, 212)', 'rgb(184, 10, 44)']}
+        type="palette"
+      />
+      <SymbolRow title="RGBA Color" tintColor="rgba(131, 8, 153, 0.9)" />
       <SymbolRow title="Multicolor" type="multicolor" />
       <SymbolWeights title="Weights" tintColor="yellow" />
       <SymbolScales title="Scales" tintColor="cyan" />

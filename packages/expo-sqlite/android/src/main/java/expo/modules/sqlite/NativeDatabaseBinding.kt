@@ -44,14 +44,14 @@ internal class NativeDatabaseBinding : Closeable {
   // region sqlite3 bindings
 
   external fun sqlite3_changes(): Int
-  external fun sqlite3_finalize_all_statement(): Int
+  external fun sqlite3_finalize_all_statement()
   external fun sqlite3_close(): Int
   external fun sqlite3_db_filename(databaseName: String): String
   external fun sqlite3_enable_load_extension(onoff: Int): Int
   external fun sqlite3_exec(source: String): Int
   external fun sqlite3_get_autocommit(): Int
   external fun sqlite3_last_insert_rowid(): Long
-  external fun sqlite3_load_extension(libPath: String, entryProc: String): Int
+  external fun sqlite3_load_extension(libPath: String, entryPoint: String): Int
   external fun sqlite3_open(dbPath: String): Int
   external fun sqlite3_prepare_v2(source: String, statement: NativeStatementBinding): Int
   external fun sqlite3_serialize(databaseName: String): ByteArray

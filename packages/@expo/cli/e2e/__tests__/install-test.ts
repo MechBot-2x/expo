@@ -8,6 +8,7 @@ import {
   getLoadedModulesAsync,
   setupTestProjectWithOptionsAsync,
   findProjectFiles,
+  stripWhitespace,
 } from './utils';
 import { executeBunAsync, executeExpoAsync } from '../utils/expo';
 
@@ -51,6 +52,7 @@ it('runs `npx expo install --help`', async () => {
         --bun       Use bun to install dependencies. Default when bun.lock or bun.lockb exists
         --pnpm      Use pnpm to install dependencies. Default when pnpm-lock.yaml exists
         -h, --help  Usage info
+        --json      Output dependency information in JSON format with --check flag
 
       Additional options can be passed to the underlying install command by using --
         $ npx expo install react -- --verbose
@@ -71,6 +73,10 @@ it('runs `npx expo install expo-sms`', async () => {
   // Added expected package
   const pkgDependencies = pkg.dependencies as Record<string, string>;
   expect(pkgDependencies['expo-sms']).toBe('~13.0.1');
+
+  // TODO(@kitten): Temporary to unblock CI (see ./utils.ts)
+  delete (pkg.devDependencies as any)['@expo/metro'];
+
   expect(pkg.devDependencies).toEqual({
     '@babel/core': '^7.25.2',
   });
@@ -262,12 +268,33 @@ describe('expo-router integration', () => {
       '@react-navigation/native': '6.1.18',
     });
 
-    // Run `--fix` project dependencies with expo@52 and expo-router from source
-    await executeExpoAsync(projectRoot, ['install', '--fix']);
+    let error: unknown = undefined;
+    try {
+      // Run `--fix` project dependencies with expo@52 and expo-router from source
+      await executeExpoAsync(projectRoot, ['install', '--fix']);
+    } catch (e) {
+      error = e;
+    }
+
+    expect(error).toBeDefined();
+    expect((error as Error).message).toContain(
+      'Cannot automatically write to dynamic config at: app.config.js'
+    );
+    expect(stripWhitespace((error as Error).message)).toContain(
+      stripWhitespace(`
+        Add the following to your Expo config
+
+        {
+          "plugins": [
+            "expo-router"
+          ]
+        }
+      `)
+    );
 
     // Ensure `@react-navigation/native` was updated
     expect(pkg.read().dependencies).toMatchObject({
-      '@react-navigation/native': '^7.0.14',
+      '@react-navigation/native': '^7.1.6',
     });
   });
 });

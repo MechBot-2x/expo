@@ -1,17 +1,17 @@
-import { ExpoConfig, getConfig } from '@expo/config';
+import { type ExpoConfig, getConfig } from '@expo/config';
 import { getMetroServerRoot } from '@expo/config/paths';
-import { getDefaultConfig, LoadOptions } from '@expo/metro-config';
+import type Bundler from '@expo/metro/metro/Bundler';
+import type { ReadOnlyGraph } from '@expo/metro/metro/DeltaBundler';
+import type { TransformOptions } from '@expo/metro/metro/DeltaBundler/Worker';
+import MetroHmrServer, { Client as MetroHmrClient } from '@expo/metro/metro/HmrServer';
+import RevisionNotFoundError from '@expo/metro/metro/IncrementalBundler/RevisionNotFoundError';
+import type MetroServer from '@expo/metro/metro/Server';
+import formatBundlingError from '@expo/metro/metro/lib/formatBundlingError';
+import { loadConfig, resolveConfig, type ConfigT } from '@expo/metro/metro-config';
+import { Terminal } from '@expo/metro/metro-core';
+import { getDefaultConfig, type LoadOptions } from '@expo/metro-config';
 import chalk from 'chalk';
 import http from 'http';
-import type Metro from 'metro';
-import { ReadOnlyGraph } from 'metro';
-import Bundler from 'metro/src/Bundler';
-import type { TransformOptions } from 'metro/src/DeltaBundler/Worker';
-import MetroHmrServer from 'metro/src/HmrServer';
-import RevisionNotFoundError from 'metro/src/IncrementalBundler/RevisionNotFoundError';
-import formatBundlingError from 'metro/src/lib/formatBundlingError';
-import { loadConfig, resolveConfig, ConfigT } from 'metro-config';
-import { Terminal } from 'metro-core';
 import util from 'node:util';
 import path from 'path';
 
@@ -39,7 +39,7 @@ type MessageSocket = {
 // Wrap terminal and polyfill console.log so we can log during bundling without breaking the indicator.
 class LogRespectingTerminal extends Terminal {
   constructor(stream: import('node:net').Socket | import('node:stream').Writable) {
-    super(stream);
+    super(stream, { ttyPrint: true });
 
     const sendLog = (...args: any[]) => {
       this._logLines.push(
@@ -81,6 +81,17 @@ export async function loadMetroConfigAsync(
   // NOTE: Enable all the experimental Metro flags when RSC is enabled.
   if (exp.experiments?.reactServerComponentRoutes || serverActionsEnabled) {
     process.env.EXPO_USE_METRO_REQUIRE = '1';
+    process.env.EXPO_USE_FAST_RESOLVER = '1';
+  }
+
+  const isReactCanaryEnabled =
+    (exp.experiments?.reactServerComponentRoutes ||
+      serverActionsEnabled ||
+      exp.experiments?.reactCanary) ??
+    false;
+
+  if (isReactCanaryEnabled) {
+    // The fast resolver is required for React canary to work as it can switch the node_modules location for react imports.
     process.env.EXPO_USE_FAST_RESOLVER = '1';
   }
 
@@ -148,13 +159,10 @@ export async function loadMetroConfigAsync(
     exp,
     platformBundlers,
     isTsconfigPathsEnabled: exp.experiments?.tsconfigPaths ?? true,
+    isStickyResolverEnabled: env.EXPO_USE_STICKY_RESOLVER,
     isFastResolverEnabled: env.EXPO_USE_FAST_RESOLVER,
     isExporting,
-    isReactCanaryEnabled:
-      (exp.experiments?.reactServerComponentRoutes ||
-        serverActionsEnabled ||
-        exp.experiments?.reactCanary) ??
-      false,
+    isReactCanaryEnabled,
     isNamedRequiresEnabled: env.EXPO_USE_METRO_REQUIRE,
     isReactServerComponentsEnabled: !!exp.experiments?.reactServerComponentRoutes,
     getMetroBundler,
@@ -178,25 +186,25 @@ export async function instantiateMetroAsync(
     }).exp,
   }: { isExporting: boolean; exp?: ExpoConfig }
 ): Promise<{
-  metro: Metro.Server;
-  hmrServer: MetroHmrServer | null;
+  metro: MetroServer;
+  hmrServer: MetroHmrServer<MetroHmrClient> | null;
   server: http.Server;
   middleware: any;
   messageSocket: MessageSocket;
 }> {
   const projectRoot = metroBundler.projectRoot;
 
-  const { config: metroConfig, setEventReporter } = await loadMetroConfigAsync(
-    projectRoot,
-    options,
-    {
-      exp,
-      isExporting,
-      getMetroBundler() {
-        return metro.getBundler().getBundler();
-      },
-    }
-  );
+  const {
+    config: metroConfig,
+    setEventReporter,
+    reporter,
+  } = await loadMetroConfigAsync(projectRoot, options, {
+    exp,
+    isExporting,
+    getMetroBundler() {
+      return metro.getBundler().getBundler();
+    },
+  });
 
   // Create the core middleware stack for Metro, including websocket listeners
   const { middleware, messagesSocket, eventsSocket, websocketEndpoints } =
@@ -207,7 +215,10 @@ export async function instantiateMetroAsync(
     prependMiddleware(middleware, createCorsMiddleware(exp));
 
     // Enable debug middleware for CDP-related debugging
-    const { debugMiddleware, debugWebsocketEndpoints } = createDebugMiddleware(metroBundler);
+    const { debugMiddleware, debugWebsocketEndpoints } = createDebugMiddleware(
+      metroBundler,
+      reporter
+    );
     Object.assign(websocketEndpoints, debugWebsocketEndpoints);
     middleware.use(debugMiddleware);
     middleware.use('/_expo/debugger', createJsInspectorMiddleware());
@@ -217,7 +228,7 @@ export async function instantiateMetroAsync(
     // See: https://github.com/facebook/metro/commit/d0d554381f119bb80ab09dbd6a1d310b54737e52
     const customEnhanceMiddleware = metroConfig.server.enhanceMiddleware;
     // @ts-expect-error: can't mutate readonly config
-    metroConfig.server.enhanceMiddleware = (metroMiddleware: any, server: Metro.Server) => {
+    metroConfig.server.enhanceMiddleware = (metroMiddleware: any, server: MetroServer) => {
       if (customEnhanceMiddleware) {
         metroMiddleware = customEnhanceMiddleware(metroMiddleware, server);
       }
@@ -283,7 +294,7 @@ export async function instantiateMetroAsync(
 
   // This function ensures that modules in source maps are sorted in the same
   // order as in a plain JS bundle.
-  metro._getSortedModules = function (this: Metro.Server, graph: ReadOnlyGraph) {
+  metro._getSortedModules = function (this: MetroServer, graph: ReadOnlyGraph) {
     const modules = [...graph.dependencies.values()];
 
     const ctx = {
@@ -303,18 +314,25 @@ export async function instantiateMetroAsync(
   };
 
   if (hmrServer) {
-    let hmrJSBundle: typeof import('@expo/metro-config/build/serializer/fork/hmrJSBundle').default;
+    let hmrJSBundle:
+      | typeof import('@expo/metro-config/build/serializer/fork/hmrJSBundle').default
+      | typeof import('@expo/metro/metro/DeltaBundler/Serializers/hmrJSBundle').default;
 
     try {
       hmrJSBundle = require('@expo/metro-config/build/serializer/fork/hmrJSBundle').default;
     } catch {
-      // Add fallback for monorepo tests up until the fork is merged.
+      // TODO: Add fallback for monorepo tests up until the fork is merged.
       Log.warn('Failed to load HMR serializer from @expo/metro-config, using fallback version.');
-      hmrJSBundle = require('metro/src/DeltaBundler/Serializers/hmrJSBundle');
+      hmrJSBundle = require('@expo/metro/metro/DeltaBundler/Serializers/hmrJSBundle');
     }
 
     // Patch HMR Server to send more info to the `_createModuleId` function for deterministic module IDs and add support for serializing HMR updates the same as all other bundles.
-    hmrServer._prepareMessage = async function (this: MetroHmrServer, group, options, changeEvent) {
+    hmrServer._prepareMessage = async function (
+      this: MetroHmrServer<MetroHmrClient>,
+      group,
+      options,
+      changeEvent
+    ) {
       // Fork of https://github.com/facebook/metro/blob/3b3e0aaf725cfa6907bf2c8b5fbc0da352d29efe/packages/metro/src/HmrServer.js#L327-L393
       // with patch for `_createModuleId`.
       const logger = !options.isInitialUpdate ? changeEvent?.logger : null;
@@ -423,8 +441,8 @@ function pruneCustomTransformOptions(
 
   if (
     transformOptions.customTransformOptions?.clientBoundaries &&
-    // The client boundaries are only used in `@expo/metro-runtime/src/virtual.js` for production RSC exports.
-    !filePath.match(/\/@expo\/metro-runtime\/rsc\/virtual\.js$/)
+    // The client boundaries are only used in `expo/virtual/rsc.js` for production RSC exports.
+    !filePath.match(/\/expo\/virtual\/rsc\.js$/)
   ) {
     delete transformOptions.customTransformOptions.clientBoundaries;
   }

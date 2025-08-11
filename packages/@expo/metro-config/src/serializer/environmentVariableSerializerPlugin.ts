@@ -4,9 +4,14 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { ReadOnlyGraph, MixedOutput, Module, SerializerOptions } from 'metro';
-import CountingSet from 'metro/src/lib/CountingSet';
-import countLines from 'metro/src/lib/countLines';
+import type {
+  ReadOnlyGraph,
+  MixedOutput,
+  Module,
+  SerializerOptions,
+} from '@expo/metro/metro/DeltaBundler/types.flow';
+import CountingSet from '@expo/metro/metro/lib/CountingSet';
+import countLines from '@expo/metro/metro/lib/countLines';
 
 import { SerializerParameters } from './withExpoSerializers';
 
@@ -119,7 +124,9 @@ export function getEnvVarDevString(env: NodeJS.ProcessEnv = process.env) {
   const str =
     `process.env=Object.defineProperties(process.env, {` +
     Object.keys(getAllExpoPublicEnvVars(env))
-      .map((key) => `${JSON.stringify(key)}: { value: ${JSON.stringify(env[key])} }`)
+      .map(
+        (key) => `${JSON.stringify(key)}: { enumerable: true, value: ${JSON.stringify(env[key])} }`
+      )
       .join(',') +
     '});';
   const code = '/* HMR env vars from Expo CLI (dev-only) */ ' + str;

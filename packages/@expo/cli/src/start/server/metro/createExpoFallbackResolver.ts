@@ -7,7 +7,7 @@
 // a user's project.
 // See: https://github.com/expo/expo/pull/34286
 
-import type { ResolutionContext } from 'metro-resolver';
+import type { ResolutionContext, PackageJson } from '@expo/metro/metro-resolver/types';
 import path from 'path';
 
 import type { StrictResolver, StrictResolverFactory } from './withMetroMultiPlatform';
@@ -35,11 +35,8 @@ interface PackageMetaPeerDependenciesMetaEntry {
   optional?: boolean;
 }
 
-interface PackageMeta {
+interface PackageMeta extends PackageJson {
   readonly [propName: string]: unknown;
-  readonly name?: string;
-  readonly main?: string;
-  readonly exports?: any; // unused
   readonly dependencies?: Record<string, unknown>;
   readonly peerDependencies?: Record<string, unknown>;
   readonly peerDependenciesMeta?: Record<
@@ -68,13 +65,14 @@ const getModuleDescriptionWithResolver = (
   let filePath: string | undefined;
   let packageMeta: PackageMeta | undefined | null;
   try {
-    const resolution = resolve(`${originModuleName}/package.json`);
+    const resolution = resolve(path.join(originModuleName, 'package.json'));
     if (resolution.type !== 'sourceFile') {
       debug(`Fallback module resolution failed for origin module: ${originModuleName})`);
       return null;
     }
     filePath = resolution.filePath;
-    packageMeta = context.getPackage(filePath);
+    // Upcast PackageJson to PackageMeta
+    packageMeta = context.getPackage(filePath) as PackageMeta | null | undefined;
     if (!packageMeta) {
       return null;
     }
@@ -132,9 +130,11 @@ const getModuleDescriptionWithResolver = (
  * ourselves and know we can resolve (via expo or expo-router)!
  */
 export function createFallbackModuleResolver({
+  projectRoot,
   originModuleNames,
   getStrictResolver,
 }: {
+  projectRoot: string;
   originModuleNames: string[];
   getStrictResolver: StrictResolverFactory;
 }): ExpoCustomMetroResolver {
@@ -148,10 +148,12 @@ export function createFallbackModuleResolver({
     if (_moduleDescriptionsCache[originModuleName] !== undefined) {
       return _moduleDescriptionsCache[originModuleName];
     }
-    // Resolve the origin module itself through `<module>/.`
+    // Resolve the origin module itself via the project root rather than the file that requested the missing module
+    // The addition of `package.json` doesn't matter here. We just need a file path that'll be turned into a directory path
+    // We don't need to modify `nodeModulesPaths` since it's guaranteed to contain the project's node modules paths
     const context: ResolutionContext = {
       ...immutableContext,
-      originModulePath: `${originModuleName}/package.json`,
+      originModulePath: path.join(projectRoot, 'package.json'),
     };
     return (_moduleDescriptionsCache[originModuleName] = getModuleDescriptionWithResolver(
       context,

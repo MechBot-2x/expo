@@ -45,9 +45,21 @@ export declare class SQLiteDatabase {
      */
     createSessionAsync(dbName?: string): Promise<SQLiteSession>;
     /**
+     * Load a SQLite extension.
+     * @param libPath The path to the extension library file.
+     * @param entryPoint The entry point of the extension. If not provided, the default entry point is inferred by [`sqlite3_load_extension`](https://www.sqlite.org/c3ref/load_extension.html).
+     *
+     * @platform android
+     * @platform ios
+     * @platform macos
+     * @platform tvos
+     */
+    loadExtensionAsync(libPath: string, entryPoint?: string): Promise<void>;
+    /**
      * Execute a transaction and automatically commit/rollback based on the `task` result.
      *
      * > **Note:** This transaction is not exclusive and can be interrupted by other async queries.
+     *
      * @example
      * ```ts
      * db.withTransactionAsync(async () => {
@@ -75,8 +87,15 @@ export declare class SQLiteDatabase {
      * As long as the transaction is converted into a write transaction,
      * the other async write queries will abort with `database is locked` error.
      *
+     * > **Note:** This function is not supported on web.
+     *
      * @param task An async function to execute within a transaction. Any queries inside the transaction must be executed on the `txn` object.
      * The `txn` object has the same interfaces as the [`SQLiteDatabase`](#sqlitedatabase) object. You can use `txn` like a [`SQLiteDatabase`](#sqlitedatabase) object.
+     *
+     * @platform android
+     * @platform ios
+     * @platform macos
+     * @platform tvos
      *
      * @example
      * ```ts
@@ -122,13 +141,24 @@ export declare class SQLiteDatabase {
     prepareSync(source: string): SQLiteStatement;
     /**
      * Create a new session for the database.
-     * @see [`sqlite3session_create`](https://www.sqlite.org/session/sqlite3session_create.html)
      *
      * > **Note:** Running heavy tasks with this function can block the JavaScript thread and affect performance.
      *
+     * @see [`sqlite3session_create`](https://www.sqlite.org/session/sqlite3session_create.html)
      * @param dbName The name of the database to create a session for. The default value is `main`.
      */
     createSessionSync(dbName?: string): SQLiteSession;
+    /**
+     * Load a SQLite extension.
+     * @param libPath The path to the extension library file.
+     * @param entryPoint The entry point of the extension. If not provided, the default entry point is inferred by [`sqlite3_load_extension`](https://www.sqlite.org/c3ref/load_extension.html).
+     *
+     * @platform android
+     * @platform ios
+     * @platform macos
+     * @platform tvos
+     */
+    loadExtensionSync(libPath: string, entryPoint?: string): void;
     /**
      * Execute a transaction and automatically commit/rollback based on the `task` result.
      *
@@ -238,18 +268,25 @@ export declare class SQLiteDatabase {
      * Synchronize the local database with the remote libSQL server.
      * This method is only available from libSQL integration.
      */
-    syncLibSQL(): void;
+    syncLibSQL(): Promise<void>;
 }
 /**
  * The default directory for SQLite databases.
  */
 export declare const defaultDatabaseDirectory: any;
 /**
+ * The pre-bundled SQLite extensions.
+ */
+export declare const bundledExtensions: Record<string, {
+    libPath: string;
+    entryPoint: string;
+} | undefined>;
+/**
  * Open a database.
  *
  * @param databaseName The name of the database file to open.
  * @param options Open options.
- * @param directory The directory where the database file is located. The default value is `defaultDatabaseDirectory`.
+ * @param directory The directory where the database file is located. The default value is `defaultDatabaseDirectory`. This parameter is not supported on web.
  */
 export declare function openDatabaseAsync(databaseName: string, options?: SQLiteOpenOptions, directory?: string): Promise<SQLiteDatabase>;
 /**
@@ -259,7 +296,7 @@ export declare function openDatabaseAsync(databaseName: string, options?: SQLite
  *
  * @param databaseName The name of the database file to open.
  * @param options Open options.
- * @param directory The directory where the database file is located. The default value is `defaultDatabaseDirectory`.
+ * @param directory The directory where the database file is located. The default value is `defaultDatabaseDirectory`. This parameter is not supported on web.
  */
 export declare function openDatabaseSync(databaseName: string, options?: SQLiteOpenOptions, directory?: string): SQLiteDatabase;
 /**
@@ -299,10 +336,11 @@ export declare function deleteDatabaseSync(databaseName: string, directory?: str
  *
  * @see https://www.sqlite.org/c3ref/backup_finish.html
  *
- * @param sourceDatabase The source database to backup from.
- * @param sourceDatabaseName The name of the source database. The default value is `main`.
- * @param destDatabase The destination database to backup to.
- * @param destDatabaseName The name of the destination database. The default value is `main`.
+ * @param options - The backup options
+ * @param options.sourceDatabase - The source database to backup from
+ * @param options.sourceDatabaseName - The name of the source database. The default value is `main`
+ * @param options.destDatabase - The destination database to backup to
+ * @param options.destDatabaseName - The name of the destination database. The default value is `m
  */
 export declare function backupDatabaseAsync({ sourceDatabase, sourceDatabaseName, destDatabase, destDatabaseName, }: {
     sourceDatabase: SQLiteDatabase;
@@ -313,14 +351,15 @@ export declare function backupDatabaseAsync({ sourceDatabase, sourceDatabaseName
 /**
  * Backup a database to another database.
  *
- * @see https://www.sqlite.org/c3ref/backup_finish.html
- *
  * > **Note:** Running heavy tasks with this function can block the JavaScript thread and affect performance.
  *
- * @param sourceDatabase The source database to backup from.
- * @param sourceDatabaseName The name of the source database. The default value is `main`.
- * @param destDatabase The destination database to backup to.
- * @param destDatabaseName The name of the destination database. The default value is `main`.
+ * @see https://www.sqlite.org/c3ref/backup_finish.html
+ *
+ * @param options - The backup options
+ * @param options.sourceDatabase - The source database to backup from
+ * @param options.sourceDatabaseName - The name of the source database. The default value is `main`
+ * @param options.destDatabase - The destination database to backup to
+ * @param options.destDatabaseName - The name of the destination database. The default value is `m
  */
 export declare function backupDatabaseSync({ sourceDatabase, sourceDatabaseName, destDatabase, destDatabaseName, }: {
     sourceDatabase: SQLiteDatabase;

@@ -17,6 +17,9 @@ import { createPackageTarball } from '../utils/package';
 const originalForceColor = process.env.FORCE_COLOR;
 const originalCI = process.env.CI;
 
+// to avoid flaky fail when testing prebuild form github template
+jest.retryTimes(3, { logErrorsBeforeRetry: true });
+
 beforeAll(async () => {
   await fs.mkdir(projectRoot, { recursive: true });
   process.env.FORCE_COLOR = '0';
@@ -75,7 +78,7 @@ it('runs `npx expo prebuild` asserts when expo is not installed', async () => {
   await expect(
     executeExpoAsync(projectRoot, ['prebuild', '--no-install'], { verbose: false })
   ).rejects.toThrow(
-    /Cannot determine which native SDK version your project uses because the module `expo` is not installed\. Please install it with `yarn add expo` and try again./
+    /Cannot determine the project's Expo SDK version because the module `expo` is not installed\. Install it with `npm install expo` and try again./
   );
 });
 
@@ -221,6 +224,46 @@ itNotWindows('runs `npx expo prebuild --template expo-template-bare-minimum@50.0
 });
 
 // This tests contains assertions related to ios files, making it incompatible with Windows
+itNotWindows('runs `npx expo prebuild --template <invalid-url>`', async () => {
+  const projectRoot = await setupTestProjectWithOptionsAsync(
+    'github-template-prebuild',
+    'with-blank',
+    { reuseExisting: false }
+  );
+
+  const expoPackage = require(path.join(projectRoot, 'package.json')).dependencies.expo;
+  const expoSdkVersion = semver.minVersion(expoPackage)?.major;
+  if (!expoSdkVersion) {
+    throw new Error('Could not determine Expo SDK major version from template');
+  }
+
+  const templateUrl = `https://github.com/expo/expo/tree/sdk-${expoSdkVersion}/templates/this-template-does-not-exist`;
+
+  let error: unknown = undefined;
+  try {
+    await executeExpoAsync(projectRoot, ['prebuild', '--no-install', '--template', templateUrl], {
+      // To avoid error log output in tests
+      verbose: false,
+    });
+  } catch (e) {
+    error = e;
+  }
+
+  expect(error).toBeDefined();
+  expect(error).toMatchObject({
+    message: expect.stringContaining(`Could not locate the repository for "${templateUrl}".`),
+  });
+  expect(error).toMatchObject({
+    message: expect.stringContaining(`Failed to create the native directories`),
+  });
+  expect(findProjectFiles(projectRoot)).toEqual(
+    expect.not.arrayContaining([
+      expect.stringMatching(/^ios\//),
+      expect.stringMatching(/^android\//),
+    ])
+  );
+});
+
 itNotWindows('runs `npx expo prebuild --template <github-url>`', async () => {
   const projectRoot = await setupTestProjectWithOptionsAsync(
     'github-template-prebuild',
@@ -254,4 +297,47 @@ itNotWindows('runs `npx expo prebuild --template <github-url>`', async () => {
 
   // If this changes then everything else probably changed as well.
   expect(findProjectFiles(projectRoot)).toMatchSnapshot();
+});
+
+// Regression test for https://github.com/expo/expo/issues/36289
+// This tests contains assertions related to ios files, making it incompatible with Windows
+itNotWindows('runs `npx expo prebuild --platform ios` after building Android', async () => {
+  const projectRoot = await setupTestProjectWithOptionsAsync(
+    'regression-expo-36289',
+    'with-blank',
+    { reuseExisting: false }
+  );
+
+  const templateTarball = await createPackageTarball(
+    projectRoot,
+    'templates/expo-template-bare-minimum'
+  );
+
+  // Execute prebuild for android
+  await executeExpoAsync(projectRoot, [
+    'prebuild',
+    '--platform=android',
+    '--no-install',
+    '--template',
+    templateTarball.relativePath,
+  ]);
+
+  // Create the `android/.gradle` folder that Gradle creates, and create the empty `android/.gradle/vcs-1/gc.properties` file
+  // We can also run `./gradlew :app:assembleDebug` but that's an expensive operation.
+  await fs.mkdir(path.join(projectRoot, 'android/.gradle/vcs-1'), { recursive: true });
+  await fs.writeFile(path.join(projectRoot, 'android/.gradle/vcs-1/gc.properties'), '');
+
+  // Execute prebuild for iOS
+  const command = await executeExpoAsync(projectRoot, [
+    'prebuild',
+    '--platform=ios',
+    '--no-install',
+    '--template',
+    templateTarball.relativePath,
+  ]);
+
+  // Ensure there are no errors
+  expect(command).not.toMatchObject({
+    stderr: expect.stringContaining('Failed to read template file'),
+  });
 });

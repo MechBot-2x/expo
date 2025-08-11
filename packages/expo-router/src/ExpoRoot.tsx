@@ -1,18 +1,32 @@
 'use client';
 
-import { LinkingOptions, NavigationAction } from '@react-navigation/native';
+import {
+  LinkingOptions,
+  NavigationAction,
+  StackRouter,
+  useNavigationBuilder,
+} from '@react-navigation/native';
 import React, { type PropsWithChildren, Fragment, type ComponentType, useMemo } from 'react';
 import { StatusBar, useColorScheme, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { INTERNAL_SLOT_NAME, NOT_FOUND_ROUTE_NAME, SITEMAP_ROUTE_NAME } from './constants';
+import { useDomComponentNavigation } from './domComponents/useDomComponentNavigation';
 import { NavigationContainer as UpstreamNavigationContainer } from './fork/NavigationContainer';
 import { ExpoLinkingOptions } from './getLinkingConfig';
-import { useInitializeExpoRouter } from './global-state/router-store';
+import { store, useStore } from './global-state/router-store';
 import { ServerContext, ServerContextType } from './global-state/serverLocationContext';
-import { useDomComponentNavigation } from './link/useDomComponentNavigation';
+import { StoreContext } from './global-state/storeContext';
+import { shouldAppendNotFound, shouldAppendSitemap } from './global-state/utils';
+import { ImperativeApiEmitter } from './imperative-api';
+import { LinkPreviewContextProvider } from './link/preview/LinkPreviewContext';
+import { ModalContextProvider } from './modal/ModalContext';
+import { Screen } from './primitives';
 import { RequireContext } from './types';
 import { canOverrideStatusBarBehavior } from './utils/statusbar';
+import { Sitemap } from './views/Sitemap';
 import * as SplashScreen from './views/Splash';
+import { Unmatched } from './views/Unmatched';
 
 export type ExpoRootProps = {
   context: RequireContext;
@@ -38,6 +52,10 @@ const INITIAL_METRICS =
       }
     : undefined;
 
+const documentTitle = {
+  enabled: false,
+};
+
 /**
  * @hidden
  */
@@ -50,13 +68,15 @@ export function ExpoRoot({ wrapper: ParentWrapper = Fragment, ...props }: ExpoRo
   const wrapper = ({ children }: PropsWithChildren) => {
     return (
       <ParentWrapper>
-        <SafeAreaProvider
-          // SSR support
-          initialMetrics={INITIAL_METRICS}>
-          {/* Users can override this by adding another StatusBar element anywhere higher in the component tree. */}
-          {canOverrideStatusBarBehavior && <AutoStatusBar />}
-          {children}
-        </SafeAreaProvider>
+        <LinkPreviewContextProvider>
+          <SafeAreaProvider
+            // SSR support
+            initialMetrics={INITIAL_METRICS}>
+            {/* Users can override this by adding another StatusBar element anywhere higher in the component tree. */}
+            {canOverrideStatusBarBehavior && <AutoStatusBar />}
+            {children}
+          </SafeAreaProvider>
+        </LinkPreviewContextProvider>
       </ParentWrapper>
     );
   };
@@ -114,12 +134,9 @@ function ContextNavigator({
     ? `${serverContext.location.pathname}${serverContext.location.search}`
     : undefined;
 
-  const store = useInitializeExpoRouter(context, {
-    ...linking,
-    serverUrl,
-  });
+  const store = useStore(context, linking, serverUrl);
 
-  useDomComponentNavigation(store);
+  useDomComponentNavigation();
 
   if (store.shouldShowTutorial()) {
     SplashScreen.hideAsync();
@@ -136,23 +153,43 @@ function ContextNavigator({
     }
   }
 
-  const Component = store.rootComponent;
+  return (
+    <StoreContext.Provider value={store}>
+      <UpstreamNavigationContainer
+        ref={store.navigationRef}
+        initialState={store.state}
+        linking={store.linking as LinkingOptions<any>}
+        onUnhandledAction={onUnhandledAction}
+        documentTitle={documentTitle}
+        onReady={store.onReady}>
+        <ServerContext.Provider value={serverContext}>
+          <WrapperComponent>
+            <ModalContextProvider>
+              <ImperativeApiEmitter />
+              <Content />
+            </ModalContextProvider>
+          </WrapperComponent>
+        </ServerContext.Provider>
+      </UpstreamNavigationContainer>
+    </StoreContext.Provider>
+  );
+}
+
+function Content() {
+  const children = [<Screen name={INTERNAL_SLOT_NAME} component={store.rootComponent} />];
+  if (shouldAppendNotFound()) {
+    children.push(<Screen name={NOT_FOUND_ROUTE_NAME} component={Unmatched} />);
+  }
+  if (shouldAppendSitemap()) {
+    children.push(<Screen name={SITEMAP_ROUTE_NAME} component={Sitemap} />);
+  }
+  const { state, descriptors, NavigationContent } = useNavigationBuilder(StackRouter, {
+    children,
+    id: INTERNAL_SLOT_NAME,
+  });
 
   return (
-    <UpstreamNavigationContainer
-      ref={store.navigationRef}
-      initialState={store.initialState}
-      linking={store.linking as LinkingOptions<any>}
-      onUnhandledAction={onUnhandledAction}
-      documentTitle={{
-        enabled: false,
-      }}>
-      <ServerContext.Provider value={serverContext}>
-        <WrapperComponent>
-          <Component />
-        </WrapperComponent>
-      </ServerContext.Provider>
-    </UpstreamNavigationContainer>
+    <NavigationContent>{descriptors[state.routes[state.index].key].render()}</NavigationContent>
   );
 }
 

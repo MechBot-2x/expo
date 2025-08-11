@@ -1,14 +1,12 @@
 import { vol } from 'memfs';
-import path from 'path';
 
 import { findGradleAndManifestAsync, parsePackageNameAsync } from '../androidResolver';
 import { loadConfigAsync } from '../config';
 import { resolveDependencyConfigImplIosAsync } from '../iosResolver';
 import {
   createReactNativeConfigAsync,
-  findDependencyRootsAsync,
   resolveAppProjectConfigAsync,
-  resolveDependencyConfigAsync,
+  resolveReactNativeModule,
 } from '../reactNativeConfig';
 import type {
   RNConfigReactNativeLibraryConfig,
@@ -17,11 +15,14 @@ import type {
 
 jest.mock('fs/promises');
 jest.mock('resolve-from');
+jest.mock('../../platforms/android');
 jest.mock('../androidResolver');
 jest.mock('../iosResolver');
 jest.mock('../config');
 
-const EXPO_MONOREPO_ROOT = path.resolve(__dirname, '../../../../..');
+beforeEach(() => {
+  jest.resetAllMocks();
+});
 
 describe(createReactNativeConfigAsync, () => {
   const mockPlatformResolverIos = resolveDependencyConfigImplIosAsync as jest.MockedFunction<
@@ -51,21 +52,24 @@ describe(createReactNativeConfigAsync, () => {
       '/app/node_modules/react-native-test/package.json': '',
       '/app/node_modules/@react-native/subtest/package.json': '',
     });
-    mockPlatformResolverIos.mockImplementationOnce(async (packageRoot, reactNativeConfig) => {
-      if (packageRoot.endsWith('react-native-test')) {
-        return {
-          podspecPath: '/app/node_modules/react-native-test/RNTest.podspec',
-          version: '1.0.0',
-          configurations: [],
-          scriptPhases: [],
-        };
+    mockPlatformResolverIos.mockImplementationOnce(
+      async ({ path: packageRoot }, _reactNativeConfig) => {
+        if (packageRoot.endsWith('react-native-test')) {
+          return {
+            podspecPath: '/app/node_modules/react-native-test/RNTest.podspec',
+            version: '1.0.0',
+            configurations: [],
+            scriptPhases: [],
+          };
+        }
+        return null;
       }
-      return null;
-    });
+    );
     const result = await createReactNativeConfigAsync({
       platform: 'ios',
       projectRoot: '/app',
       searchPaths: ['/app/node_modules'],
+      transitiveLinkingDependencies: [],
     });
     expect(result).toMatchInlineSnapshot(`
       {
@@ -119,21 +123,24 @@ describe(createReactNativeConfigAsync, () => {
       '/app/modules/react-native-test/package.json': '',
       '/app/node_modules/react-native/package.json': '',
     });
-    mockPlatformResolverIos.mockImplementationOnce(async (packageRoot, reactNativeConfig) => {
-      if (packageRoot.endsWith('react-native-test')) {
-        return {
-          podspecPath: '/app/modules/react-native-test/RNTest.podspec',
-          version: '1.0.0',
-          configurations: [],
-          scriptPhases: [],
-        };
+    mockPlatformResolverIos.mockImplementationOnce(
+      async ({ path: packageRoot }, _reactNativeConfig) => {
+        if (packageRoot.endsWith('react-native-test')) {
+          return {
+            podspecPath: '/app/modules/react-native-test/RNTest.podspec',
+            version: '1.0.0',
+            configurations: [],
+            scriptPhases: [],
+          };
+        }
+        return null;
       }
-      return null;
-    });
+    );
     const result = await createReactNativeConfigAsync({
       platform: 'ios',
       projectRoot: '/app',
       searchPaths: ['/app/node_modules'],
+      transitiveLinkingDependencies: [],
     });
     expect(result.dependencies['react-native-test']).toBeDefined();
     expect(result.dependencies['react-native-test'].root).toBe('/app/modules/react-native-test');
@@ -161,75 +168,9 @@ describe(createReactNativeConfigAsync, () => {
       platform: 'ios',
       projectRoot: '/app',
       searchPaths: ['/app/node_modules'],
+      transitiveLinkingDependencies: [],
     });
     expect(result).toBeDefined();
-  });
-});
-
-describe(findDependencyRootsAsync, () => {
-  afterEach(() => {
-    vol.reset();
-  });
-
-  it('should find all dependencies and devDependencies', async () => {
-    const packageJson = {
-      name: 'test',
-      version: '1.0.0',
-      dependencies: {
-        'react-native': '0.0.1',
-        'react-native-test': '~0.0.2',
-      },
-      devDependencies: {
-        '@react-native/subtest': '^2.0.0',
-      },
-    };
-
-    vol.fromJSON({
-      '/app/package.json': JSON.stringify(packageJson),
-      '/app/node_modules/react-native/package.json': '',
-      '/app/node_modules/react-native-test/package.json': '',
-      '/app/node_modules/@react-native/subtest/package.json': '',
-    });
-    const results = await findDependencyRootsAsync('/app', ['/app/node_modules']);
-    expect(results).toMatchInlineSnapshot(`
-      {
-        "@react-native/subtest": "/app/node_modules/@react-native/subtest",
-        "react-native": "/app/node_modules/react-native",
-        "react-native-test": "/app/node_modules/react-native-test",
-      }
-    `);
-  });
-
-  it('should find all dependencies and devDependencies within hoisted monorepo', async () => {
-    const packageJson = {
-      name: 'test',
-      version: '1.0.0',
-      dependencies: {
-        'react-native': '0.0.1',
-        'react-native-test': '~0.0.2',
-      },
-      devDependencies: {
-        '@react-native/subtest': '^2.0.0',
-      },
-    };
-
-    vol.fromJSON({
-      '/project/apps/app/package.json': JSON.stringify(packageJson),
-      '/project/node_modules/react-native/package.json': '',
-      '/project/node_modules/react-native-test/package.json': '',
-      '/project/node_modules/@react-native/subtest/package.json': '',
-    });
-    const results = await findDependencyRootsAsync('/project/apps/app', [
-      '/project/apps/app/node_modules',
-      '/project/node_modules',
-    ]);
-    expect(results).toMatchInlineSnapshot(`
-      {
-        "@react-native/subtest": "/project/node_modules/@react-native/subtest",
-        "react-native": "/project/node_modules/react-native",
-        "react-native-test": "/project/node_modules/react-native-test",
-      }
-    `);
   });
 });
 
@@ -283,9 +224,41 @@ describe(resolveAppProjectConfigAsync, () => {
       }
     `);
   });
+
+  it('should return app project config with custom sourceDir', async () => {
+    const mockFindGradleAndManifestAsync = findGradleAndManifestAsync as jest.MockedFunction<
+      typeof findGradleAndManifestAsync
+    >;
+    mockFindGradleAndManifestAsync.mockResolvedValueOnce({
+      gradle: 'app/build.gradle',
+      manifest: 'src/main/AndroidManifest.xml',
+    });
+    const mockParsePackageNameAsync = parsePackageNameAsync as jest.MockedFunction<
+      typeof parsePackageNameAsync
+    >;
+    mockParsePackageNameAsync.mockResolvedValueOnce('com.test');
+    const configAndroid = await resolveAppProjectConfigAsync('/app', 'android', '/customNative');
+    expect(configAndroid).toMatchInlineSnapshot(`
+      {
+        "android": {
+          "packageName": "com.test",
+          "sourceDir": "/customNative",
+        },
+      }
+    `);
+
+    const configIOS = await resolveAppProjectConfigAsync('/app', 'ios', '/customNative');
+    expect(configIOS).toMatchInlineSnapshot(`
+      {
+        "ios": {
+          "sourceDir": "/customNative",
+        },
+      }
+    `);
+  });
 });
 
-describe(resolveDependencyConfigAsync, () => {
+describe(resolveReactNativeModule, () => {
   const mockLoadReactNativeConfigAsync = loadConfigAsync as jest.MockedFunction<
     typeof loadConfigAsync
   >;
@@ -301,11 +274,18 @@ describe(resolveDependencyConfigAsync, () => {
       scriptPhases: [],
     });
 
-    const result = await resolveDependencyConfigAsync(
+    const result = await resolveReactNativeModule(
+      {
+        name: 'react-native-test',
+        version: '',
+        path: '/app/node_modules/react-native-test',
+        originPath: '/app/node_modules/react-native-test',
+        duplicates: null,
+        depth: 0,
+      },
+      null,
       'ios',
-      'react-native-test',
-      '/app/node_modules/react-native-test',
-      null
+      new Set()
     );
     expect(result).toMatchInlineSnapshot(`
       {
@@ -324,15 +304,23 @@ describe(resolveDependencyConfigAsync, () => {
   });
 
   it('should call the platform resolver', async () => {
-    await resolveDependencyConfigAsync(
+    await resolveReactNativeModule(
+      {
+        name: 'react-native-test',
+        version: '',
+        path: '/app/node_modules/react-native-test',
+        originPath: '/app/node_modules/react-native-test',
+        duplicates: null,
+        depth: 0,
+      },
+      null,
       'ios',
-      'react-native-test',
-      '/app/node_modules/react-native-test',
-      null
+      new Set()
     );
     expect(mockPlatformResolverIos).toHaveBeenCalledWith(
-      '/app/node_modules/react-native-test',
-      undefined
+      expect.objectContaining({ path: '/app/node_modules/react-native-test' }),
+      undefined,
+      null
     );
   });
 
@@ -349,16 +337,27 @@ describe(resolveDependencyConfigAsync, () => {
     };
     mockLoadReactNativeConfigAsync.mockResolvedValueOnce(libraryConfig);
 
-    await resolveDependencyConfigAsync(
+    await resolveReactNativeModule(
+      {
+        name: 'react-native-test',
+        version: '',
+        path: '/app/node_modules/react-native-test',
+        originPath: '/app/node_modules/react-native-test',
+        duplicates: null,
+        depth: 0,
+      },
+      null,
       'ios',
-      'react-native-test',
-      '/app/node_modules/react-native-test',
-      null
+      new Set()
     );
-    expect(mockPlatformResolverIos).toHaveBeenCalledWith('/app/node_modules/react-native-test', {
-      configurations: ['Debug'],
-      scriptPhases: [{ name: 'test', path: './test.js' }],
-    });
+    expect(mockPlatformResolverIos).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/app/node_modules/react-native-test' }),
+      {
+        configurations: ['Debug'],
+        scriptPhases: [{ name: 'test', path: './test.js' }],
+      },
+      undefined
+    );
   });
 
   it('should call platform resolver with merged config and project config will override library config', async () => {
@@ -383,24 +382,41 @@ describe(resolveDependencyConfigAsync, () => {
     };
     mockLoadReactNativeConfigAsync.mockResolvedValueOnce(libraryConfig);
 
-    await resolveDependencyConfigAsync(
+    await resolveReactNativeModule(
+      {
+        name: 'react-native-test',
+        version: '',
+        path: '/app/node_modules/react-native-test',
+        originPath: '/app/node_modules/react-native-test',
+        duplicates: null,
+        depth: 0,
+      },
+      projectConfig,
       'ios',
-      'react-native-test',
-      '/app/node_modules/react-native-test',
-      projectConfig
+      new Set()
     );
+
     expect(mockPlatformResolverIos).toHaveBeenCalledWith(
-      '/app/node_modules/react-native-test',
-      null
+      expect.objectContaining({ path: '/app/node_modules/react-native-test' }),
+      null,
+      undefined
     );
   });
 
   it(`should return null for the react-native because it's a platform package`, async () => {
-    const actualResolveFrom = jest.requireActual('resolve-from');
-    const reactNativeRoot = path.dirname(
-      actualResolveFrom(EXPO_MONOREPO_ROOT, 'react-native/package.json')
+    const result = await resolveReactNativeModule(
+      {
+        name: 'react-native',
+        version: '',
+        path: '/app/node_modules/react-native',
+        originPath: '/app/node_modules/react-native',
+        duplicates: null,
+        depth: 0,
+      },
+      null,
+      'ios',
+      new Set()
     );
-    const result = await resolveDependencyConfigAsync('ios', 'react-native', reactNativeRoot, null);
     expect(result).toBe(null);
   });
 });

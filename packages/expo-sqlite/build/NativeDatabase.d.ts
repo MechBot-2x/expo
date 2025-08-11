@@ -12,6 +12,7 @@ export declare class NativeDatabase {
     serializeAsync(databaseName: string): Promise<Uint8Array>;
     prepareAsync(nativeStatement: NativeStatement, source: string): Promise<NativeStatement>;
     createSessionAsync(nativeSession: NativeSession, dbName: string): Promise<NativeSession>;
+    loadExtensionAsync(libPath: string, entryPoint?: string): Promise<void>;
     initSync(): void;
     isInTransactionSync(): boolean;
     closeSync(): void;
@@ -19,7 +20,8 @@ export declare class NativeDatabase {
     serializeSync(databaseName: string): Uint8Array;
     prepareSync(nativeStatement: NativeStatement, source: string): NativeStatement;
     createSessionSync(nativeSession: NativeSession, dbName: string): NativeSession;
-    syncLibSQL(): void;
+    loadExtensionSync(libPath: string, entryPoint?: string): void;
+    syncLibSQL(): Promise<void>;
 }
 /**
  * Options for opening a database.

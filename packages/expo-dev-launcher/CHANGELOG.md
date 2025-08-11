@@ -4,13 +4,114 @@
 
 ### 🛠 Breaking changes
 
+### 🎉 New features
+
+- [iOS] Reimplement UI in SwiftUI. ([#37413](https://github.com/expo/expo/pull/37413) by [@alanjhughes](https://github.com/alanjhughes))
+- [Android] Add floating action button option in the settings menu. ([#38247](https://github.com/expo/expo/pull/38247) by [@behenate](https://github.com/behenate))
+- [iOS] Partial support for Apple TV. ([#38388](https://github.com/expo/expo/pull/38388) by [@douglowder](https://github.com/douglowder))
+
+### 🐛 Bug fixes
+
+- [iOS] Fix missing CDP headers when using static frameworks. ([#37448](https://github.com/expo/expo/pull/37448) by [@alanjhughes](https://github.com/alanjhughes))
+- [Android] Use same strings in UI as iOS. ([#37786](https://github.com/expo/expo/pull/37786) by [@douglowder](https://github.com/douglowder))
+- [iOS] Fix an issue where the packager commands stop working after a reload. ([#38579](https://github.com/expo/expo/pull/38579) by [@alanjhughes](https://github.com/alanjhughes))
+
+### 💡 Others
+
+- [Android] RN 0.81.0: patched some reflection issues after kotlin upgrade ([#38451](https://github.com/expo/expo/pull/38451) by [@chrfalch](https://github.com/chrfalch))
+- Fixed release build error on Android. ([#37579](https://github.com/expo/expo/pull/37579) by [@kudo](https://github.com/kudo))
+- Informational message for tvOS on signin page. ([#38518](https://github.com/expo/expo/pull/38518) by [@douglowder](https://github.com/douglowder))
+
+### ⚠️ Notices
+
+- Added support for React Native 0.80.x. ([#37400](https://github.com/expo/expo/pull/37400) by [@gabrieldonadel](https://github.com/gabrieldonadel))
+
+## 5.1.16 - 2025-07-03
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.15 - 2025-07-02
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.14 - 2025-06-26
+
+### 🐛 Bug fixes
+
+- [Android] Fix missing launch args from pending intent extras. ([#37172](https://github.com/expo/expo/pull/37172) by [@coolsoftwaretyler](https://github.com/coolsoftwaretyler))
+- [Android] Fix missing intent extras when handling external intents. ([#37307](https://github.com/expo/expo/pull/37307) by [@coolsoftwaretyler](https://github.com/coolsoftwaretyler))
+
+## 5.1.13 - 2025-06-18
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.12 - 2025-06-04
+
+### 🐛 Bug fixes
+
+- [Android] Remove `testDebug` variant from npm package. ([#36845](https://github.com/expo/expo/pull/36845) by [@lukmccall](https://github.com/lukmccall))
+
+## 5.1.11 — 2025-05-01
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.10 — 2025-04-30
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.9 — 2025-04-30
+
+### 🐛 Bug fixes
+
+- Fixed Property "require" doesn't exist error. ([#36484](https://github.com/expo/expo/pull/36484) by [@kudo](https://github.com/kudo))
+
+## 5.1.8 — 2025-04-28
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.7 — 2025-04-28
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.6 — 2025-04-25
+
+### 💡 Others
+
+- [iOS] Remove usage of deprecated `SFAuthenticationSession` for user login. ([#36395](https://github.com/expo/expo/pull/36395) by [@alanjhughes](https://github.com/alanjhughes))
+- [Android] Enable edge-to-edge. ([#36363](https://github.com/expo/expo/pull/36363) by [@behenate](https://github.com/behenate))
+
+## 5.1.5 — 2025-04-23
+
+### 🐛 Bug fixes
+
+- Fix duplicated modals ([#36326](https://github.com/expo/expo/pull/36326) by [@jakex7](https://github.com/jakex7))
+
+## 5.1.4 — 2025-04-21
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.3 — 2025-04-14
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.2 — 2025-04-09
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.1 — 2025-04-08
+
+_This version does not introduce any user-facing changes._
+
+## 5.1.0 — 2025-04-04
+
+### 🛠 Breaking changes
+
 - upgrade RN to 0.78 ([#35050](https://github.com/expo/expo/pull/35050) by [@vonovak](https://github.com/vonovak))
 
 ### 🎉 New features
 
 - support react-native 0.77 ([#33379](https://github.com/expo/expo/pull/33379) by [@vonovak](https://github.com/vonovak))
-
-### 🐛 Bug fixes
+- Bump version of React Navigation ([#35595](https://github.com/expo/expo/pull/35595) by [@marklawlor](https://github.com/marklawlor))
 
 ### 💡 Others
 
@@ -22,6 +123,15 @@
 - Removed remote debugging dead code. ([#34977](https://github.com/expo/expo/pull/34977) by [@kudo](https://github.com/kudo))
 - [android] Migrate DevLauncherInternalModule to Expo Modules API ([#35166](https://github.com/expo/expo/pull/35166) by [@gabrieldonadel](https://github.com/gabrieldonadel))
 - Refactored `RCTReactNativeFactory` integration. ([#35679](https://github.com/expo/expo/pull/35679) by [@kudo](https://github.com/kudo))
+- [Android] Specified Gradle project version. ([#35751](https://github.com/expo/expo/pull/35751) by [@lukmccall](https://github.com/lukmccall))
+
+## 5.0.33 - 2025-04-02
+
+_This version does not introduce any user-facing changes._
+
+## 5.0.32 - 2025-03-31
+
+_This version does not introduce any user-facing changes._
 
 ## 5.0.31 - 2025-03-18
 

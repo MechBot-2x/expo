@@ -8,15 +8,29 @@ export type SupportedPlatform = 'apple' | 'ios' | 'android' | 'web' | 'macos' | 
  * Options that can be passed through `expo.autolinking` config in the package.json file.
  */
 export type AutolinkingOptions = {
+    /** Only scan direct "dependencies" of a project for React Native modules, rather than including transitive dependencies.
+     * @remarks
+     * Before SDK 54, React Native modules would only be linked if they were listed as dependencies
+     * of a project. However, in SDK 54+ transitive React Native modules dependencies are also
+     * auto-linked, unless this flag is enabled.
+     */
+    legacy_shallowReactNativeLinking?: boolean;
     searchPaths?: string[] | null;
     ignorePaths?: string[] | null;
     exclude?: string[] | null;
     flags?: Record<string, any>;
-} & {
+};
+export type AndroidAutolinkingOptions = AutolinkingOptions & {
+    buildFromSource?: string[] | null;
+};
+export type BaseAutolinkingOptions = AutolinkingOptions & {
     [key in SupportedPlatform]?: AutolinkingOptions;
 };
+export interface PlatformAutolinkingOptions extends BaseAutolinkingOptions {
+    android?: AndroidAutolinkingOptions;
+}
 export interface SearchOptions {
-    searchPaths: string[];
+    searchPaths?: string[];
     ignorePaths?: string[] | null;
     exclude?: string[] | null;
     platform: SupportedPlatform;
@@ -30,6 +44,9 @@ export interface SearchOptions {
      */
     onlyProjectDeps?: boolean;
     flags?: Record<string, any>;
+    android?: {
+        buildFromSource?: string[] | null;
+    };
 }
 export interface ResolveOptions extends SearchOptions {
     json?: boolean;
@@ -45,6 +62,7 @@ export interface GenerateModulesProviderOptions extends ResolveOptions {
     packages: string[];
 }
 export type PackageRevision = {
+    name: string;
     path: string;
     version: string;
     config?: ExpoModuleConfig;
@@ -59,6 +77,7 @@ export interface ModuleAndroidProjectInfo {
     modules: string[];
     publication?: AndroidPublication;
     aarProjects?: AndroidGradleAarProjectDescriptor[];
+    shouldUsePublicationScriptPath?: string;
 }
 export interface ModuleAndroidPluginInfo {
     id: string;
@@ -194,6 +213,12 @@ export type RawAndroidProjectConfig = {
      */
     publication?: AndroidPublication;
     /**
+     * The path to the script that determines whether the publication should be used.
+     * Evaluate in the context of the `settings.gradle` file.
+     * Won't be run if the publication is not defined.
+     */
+    shouldUsePublicationScriptPath?: string;
+    /**
      * Names of the modules to be linked in the project.
      */
     modules?: string[];
@@ -201,6 +226,7 @@ export type RawAndroidProjectConfig = {
      * Prebuilded AAR projects.
      */
     gradleAarProjects?: AndroidGradleAarProjectDescriptor[];
+    gradlePath?: string;
 };
 export type RawAndroidConfig = {
     projects?: WithRequired<RawAndroidProjectConfig, 'name' | 'path'>[];

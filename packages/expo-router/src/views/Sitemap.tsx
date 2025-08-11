@@ -2,16 +2,24 @@
 'use client';
 
 import { NativeStackNavigationOptions } from '@react-navigation/native-stack';
+import Constants from 'expo-constants';
 import React from 'react';
-import { Image, StyleSheet, Text, View, ScrollView, Platform, StatusBar } from 'react-native';
+import {
+  Image,
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  Platform,
+  StatusBar,
+  ViewStyle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Pressable } from './Pressable';
-import { RouteNode } from '../Route';
-import { useExpoRouter } from '../global-state/router-store';
-import { router } from '../imperative-api';
+import { NoSSR } from './NoSSR';
+import { Pressable, PressableProps } from './Pressable';
+import { useSitemap, SitemapType } from './useSitemap';
 import { Link } from '../link/Link';
-import { matchDeepDynamicRouteName } from '../matchers';
 import { canOverrideStatusBarBehavior } from '../utils/statusbar';
 
 const INDENT = 20;
@@ -52,130 +60,141 @@ export function getNavOptions(): NativeStackNavigationOptions {
 }
 
 export function Sitemap() {
+  // Following the https://github.com/expo/expo/blob/ubax/router/move-404-and-sitemap-to-root/packages/expo-router/src/getRoutesSSR.ts#L38
+  // we need to ensure that the Sitemap component is not rendered on the server.
   return (
-    <View style={styles.container}>
+    <NoSSR>
+      <SitemapInner />
+    </NoSSR>
+  );
+}
+
+function SitemapInner() {
+  const sitemap = useSitemap();
+  const children = React.useMemo(
+    () => sitemap?.children.filter(({ isInternal }) => !isInternal) ?? [],
+    [sitemap]
+  );
+  return (
+    <View style={styles.container} testID="expo-router-sitemap">
       {canOverrideStatusBarBehavior && <StatusBar barStyle="light-content" />}
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <FileSystemView />
+      <ScrollView contentContainerStyle={styles.scroll} contentInsetAdjustmentBehavior="automatic">
+        {children.map((child) => (
+          <View testID="sitemap-item-container" key={child.contextKey} style={styles.itemContainer}>
+            <SitemapItem node={child} />
+          </View>
+        ))}
+        <SystemInfo />
       </ScrollView>
     </View>
   );
 }
 
-function FileSystemView() {
-  const routes = useExpoRouter().getSortedRoutes();
-  return routes.map((route) => (
-    <View key={route.contextKey} style={styles.itemContainer}>
-      <FileItem route={route} />
-    </View>
-  ));
+interface SitemapItemProps {
+  node: SitemapType;
+  level?: number;
+  info?: string;
 }
 
-function FileItem({
-  route,
-  level = 0,
-  parents = [],
-  isInitial = false,
-}: {
-  route: RouteNode;
-  level?: number;
-  parents?: string[];
-  isInitial?: boolean;
-}) {
-  const disabled = route.children.length > 0;
-
-  const segments = React.useMemo(
-    () => [...parents, ...route.route.split('/')],
-    [parents, route.route]
+function SitemapItem({ node, level = 0 }: SitemapItemProps) {
+  const isLayout = React.useMemo(
+    () => node.children.length > 0 || node.contextKey.match(/_layout\.[jt]sx?$/),
+    [node]
   );
+  const info = node.isInitial ? 'Initial' : node.isGenerated ? 'Generated' : '';
 
-  const href = React.useMemo(() => {
-    return (
-      '/' +
-      segments
-        .map((segment) => {
-          // add an extra layer of entropy to the url for deep dynamic routes
-          if (matchDeepDynamicRouteName(segment)) {
-            return segment + '/' + Date.now();
-          }
-          // index must be erased but groups can be preserved.
-          return segment === 'index' ? '' : segment;
-        })
-        .filter(Boolean)
-        .join('/')
-    );
-  }, [segments, route.route]);
-
-  const filename = React.useMemo(() => {
-    const segments = route.contextKey.split('/');
-    // join last two segments for layout routes
-    if (route.contextKey.match(/_layout\.[jt]sx?$/)) {
-      return segments[segments.length - 2] + '/' + segments[segments.length - 1];
-    }
-
-    const routeSegmentsCount = route.route.split('/').length;
-
-    // Join the segment count in reverse order
-    // This presents files without layout routes as children with all relevant segments.
-    return segments.slice(-routeSegmentsCount).join('/');
-  }, [route]);
-
-  const info = isInitial ? 'Initial' : route.generated ? 'Virtual' : '';
+  if (isLayout) {
+    return <LayoutSitemapItem node={node} level={level} info={info} />;
+  }
+  return <StandardSitemapItem node={node} level={level} info={info} />;
+}
+function LayoutSitemapItem({ node, level, info }: Required<SitemapItemProps>) {
+  const [isCollapsed, setIsCollapsed] = React.useState(true);
 
   return (
     <>
-      {!route.internal && (
-        <Link
-          accessibilityLabel={route.contextKey}
-          href={href}
-          onPress={() => {
-            if (Platform.OS !== 'web' && router.canGoBack()) {
-              // Ensure the modal pops
-              router.back();
-            }
-          }}
-          disabled={disabled}
-          asChild
-          // Ensure we replace the history so you can't go back to this page.
-          replace>
-          <Pressable>
-            {({ pressed, hovered }) => (
-              <View
-                style={[
-                  styles.itemPressable,
-                  {
-                    paddingLeft: INDENT + level * INDENT,
-                    backgroundColor: hovered ? '#202425' : 'transparent',
-                  },
-                  pressed && { backgroundColor: '#26292b' },
-                  disabled && { opacity: 0.4 },
-                ]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {route.children.length ? <PkgIcon /> : <FileIcon />}
-                  <Text style={styles.filename}>{filename}</Text>
-                </View>
-
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {!!info && (
-                    <Text style={[styles.virtual, !disabled && { marginRight: 8 }]}>{info}</Text>
-                  )}
-                  {!disabled && <ForwardIcon />}
-                </View>
-              </View>
-            )}
-          </Pressable>
-        </Link>
-      )}
-      {route.children.map((child) => (
-        <FileItem
-          key={child.contextKey}
-          route={child}
-          isInitial={route.initialRouteName === child.route}
-          parents={segments}
-          level={level + (route.generated ? 0 : 1)}
-        />
-      ))}
+      <SitemapItemPressable
+        style={{ opacity: 0.4 }}
+        leftIcon={<PkgIcon />}
+        rightIcon={<ArrowIcon rotation={isCollapsed ? 0 : 180} />}
+        filename={node.filename}
+        level={level}
+        info={info}
+        onPress={() => setIsCollapsed((prev) => !prev)}
+      />
+      {!isCollapsed &&
+        node.children.map((child) => (
+          <SitemapItem
+            key={child.contextKey}
+            node={child}
+            level={level + (node.isGenerated ? 0 : 1)}
+          />
+        ))}
     </>
+  );
+}
+
+function StandardSitemapItem({ node, info, level }: Required<SitemapItemProps>) {
+  return (
+    <Link
+      accessibilityLabel={node.contextKey}
+      href={node.href}
+      asChild
+      // Ensure we replace the history so you can't go back to this page.
+      replace>
+      <SitemapItemPressable
+        leftIcon={<FileIcon />}
+        rightIcon={<ForwardIcon />}
+        filename={node.filename}
+        level={level}
+        info={info}
+      />
+    </Link>
+  );
+}
+
+function SitemapItemPressable({
+  style,
+  leftIcon,
+  rightIcon,
+  filename,
+  level,
+  info,
+  ...pressableProps
+}: {
+  style?: ViewStyle;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+  filename: string;
+  level: number;
+  info?: string;
+} & Omit<PressableProps, 'style' | 'children'>) {
+  return (
+    <Pressable {...pressableProps}>
+      {({ pressed, hovered }) => (
+        <View
+          testID="sitemap-item"
+          style={[
+            styles.itemPressable,
+            {
+              paddingLeft: INDENT + level * INDENT,
+              backgroundColor: hovered ? '#202425' : 'transparent',
+            },
+            pressed && { backgroundColor: '#26292b' },
+            style,
+          ]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {leftIcon}
+            <Text style={styles.filename}>{filename}</Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {!!info && <Text style={[styles.virtual, { marginRight: 8 }]}>{info}</Text>}
+            {rightIcon}
+          </View>
+        </View>
+      )}
+    </Pressable>
   );
 }
 
@@ -195,6 +214,60 @@ function SitemapIcon() {
   return <Image style={styles.image} source={require('expo-router/assets/sitemap.png')} />;
 }
 
+function ArrowIcon({ rotation = 0 }: { rotation?: number }) {
+  return (
+    <Image
+      style={[
+        styles.image,
+        {
+          transform: [{ rotate: `${rotation}deg` }],
+        },
+      ]}
+      source={require('expo-router/assets/arrow_down.png')}
+    />
+  );
+}
+
+function SystemInfo() {
+  const getHermesVersion = () => {
+    if (global.HermesInternal) {
+      const runtimeProps = global.HermesInternal.getRuntimeProperties?.();
+      if (runtimeProps) {
+        return runtimeProps['OSS Release Version'] || 'Unknown';
+      }
+    }
+    return null;
+  };
+
+  const locationOrigin = window.location.origin;
+  const expoSdkVersion = Constants.expoConfig?.sdkVersion || 'Unknown';
+  const hermesVersion = getHermesVersion();
+
+  return (
+    <View testID="sitemap-system-info" style={styles.systemInfoContainer}>
+      <Text style={styles.systemInfoTitle}>System Information</Text>
+      {locationOrigin && (
+        <View style={styles.systemInfoItem}>
+          <Text style={styles.systemInfoLabel}>Location origin:</Text>
+          <Text style={styles.systemInfoValue}>{locationOrigin}</Text>
+        </View>
+      )}
+      <View style={styles.systemInfoItem}>
+        <Text style={styles.systemInfoLabel}>Expo SDK version:</Text>
+        <Text style={styles.systemInfoValue}>{expoSdkVersion}</Text>
+      </View>
+      {hermesVersion && (
+        <View style={styles.systemInfoItem}>
+          <Text style={styles.systemInfoLabel}>Hermes version:</Text>
+          <Text style={styles.systemInfoValue} numberOfLines={1} ellipsizeMode="tail">
+            {hermesVersion}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: 'black',
@@ -206,14 +279,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderColor: '#313538',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.33,
-    shadowRadius: 3,
-    elevation: 8,
+    boxShadow: '0px 3px 3px rgba(0, 0, 0, 0.33)',
   },
   headerContent: {
     flexDirection: 'row',
@@ -282,5 +348,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  systemInfoContainer: {
+    borderWidth: 1,
+    borderColor: '#313538',
+    backgroundColor: '#151718',
+    borderRadius: 12,
+    padding: INDENT,
+    marginTop: 24,
+  },
+  systemInfoTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  systemInfoItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  systemInfoLabel: {
+    color: 'white',
+    fontSize: 16,
+    opacity: 0.7,
+  },
+  systemInfoValue: {
+    color: 'white',
+    fontSize: 16,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 12,
   },
 });

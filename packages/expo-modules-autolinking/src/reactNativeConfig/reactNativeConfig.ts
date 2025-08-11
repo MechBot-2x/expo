@@ -1,9 +1,7 @@
-import fs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 
-import { getIsolatedModulesPath } from '../autolinking/utils';
-import { fileExistsAsync } from '../fileUtils';
-import type { SupportedPlatform } from '../types';
+import type { SearchOptions, SupportedPlatform } from '../types';
 import {
   findGradleAndManifestAsync,
   parsePackageNameAsync,
@@ -14,161 +12,140 @@ import { resolveDependencyConfigImplIosAsync } from './iosResolver';
 import type {
   RNConfigCommandOptions,
   RNConfigDependency,
+  RNConfigDependencyAndroid,
+  RNConfigDependencyIos,
   RNConfigReactNativeAppProjectConfig,
   RNConfigReactNativeLibraryConfig,
   RNConfigReactNativeProjectConfig,
   RNConfigResult,
 } from './reactNativeConfig.types';
+import { discoverExpoModuleConfigAsync, ExpoModuleConfig } from '../ExpoModuleConfig';
+import { mergeLinkingOptionsAsync } from '../autolinking';
+import {
+  DependencyResolution,
+  filterMapResolutionResult,
+  mergeResolutionResults,
+  scanDependenciesFromRNProjectConfig,
+  scanDependenciesInSearchPath,
+  scanDependenciesRecursively,
+} from '../dependencies';
 
-/**
- * Create config for react-native core autolinking.
- */
-export async function createReactNativeConfigAsync({
-  platform,
-  projectRoot,
-  searchPaths,
-}: RNConfigCommandOptions): Promise<RNConfigResult> {
-  const projectConfig = await loadConfigAsync<RNConfigReactNativeProjectConfig>(projectRoot);
-  const dependencyRoots = {
-    ...(await findDependencyRootsAsync(projectRoot, searchPaths)),
-    ...findProjectLocalDependencyRoots(projectConfig),
-  };
-
-  // NOTE(@kitten): If this isn't resolved to be the realpath and is a symlink,
-  // the Cocoapods resolution will detect path mismatches and generate nonsensical
-  // relative paths that won't resolve
-  let reactNativePath: string;
-  try {
-    reactNativePath = await fs.realpath(dependencyRoots['react-native']);
-  } catch {
-    reactNativePath = dependencyRoots['react-native'];
-  }
-
-  const dependencyConfigs = await Promise.all(
-    Object.entries(dependencyRoots).map(async ([name, packageRoot]) => {
-      const config = await resolveDependencyConfigAsync(platform, name, packageRoot, projectConfig);
-      return [name, config];
-    })
-  );
-  const dependencyResults = Object.fromEntries<RNConfigDependency>(
-    dependencyConfigs.filter(([, config]) => config != null) as Iterable<
-      [string, RNConfigDependency]
-    >
-  );
-  const projectData = await resolveAppProjectConfigAsync(projectRoot, platform);
-  return {
-    root: projectRoot,
-    reactNativePath,
-    dependencies: dependencyResults,
-    project: projectData,
-  };
-}
-
-/**
- * Find all dependencies and their directories from the project.
- */
-export async function findDependencyRootsAsync(
-  projectRoot: string,
-  searchPaths: string[]
-): Promise<Record<string, string>> {
-  const packageJson = JSON.parse(await fs.readFile(path.join(projectRoot, 'package.json'), 'utf8'));
-  const dependencies = [
-    ...Object.keys(packageJson.dependencies ?? {}),
-    ...Object.keys(packageJson.devDependencies ?? {}),
-  ];
-
-  const results: Record<string, string> = {};
-  // `searchPathSet` can be mutated to discover all "isolated modules groups", when using isolated modules
-  const searchPathSet = new Set(searchPaths);
-
-  for (const name of dependencies) {
-    for (const searchPath of searchPathSet) {
-      const packageConfigPath = path.resolve(searchPath, name, 'package.json');
-      if (await fileExistsAsync(packageConfigPath)) {
-        const packageRoot = path.dirname(packageConfigPath);
-        results[name] = packageRoot;
-
-        const maybeIsolatedModulesPath = getIsolatedModulesPath(packageRoot, name);
-        if (maybeIsolatedModulesPath) {
-          searchPathSet.add(maybeIsolatedModulesPath);
-        }
-        break;
-      }
-    }
-  }
-
-  return results;
-}
-
-/**
- * Find local dependencies that specified in the `react-native.config.js` file.
- */
-function findProjectLocalDependencyRoots(
-  projectConfig: RNConfigReactNativeProjectConfig | null
-): Record<string, string> {
-  if (!projectConfig?.dependencies) {
-    return {};
-  }
-  const results: Record<string, string> = {};
-  for (const [name, config] of Object.entries(projectConfig.dependencies)) {
-    if (typeof config.root === 'string') {
-      results[name] = config.root;
-    }
-  }
-  return results;
-}
-
-export async function resolveDependencyConfigAsync(
+export async function resolveReactNativeModule(
+  resolution: DependencyResolution,
+  projectConfig: RNConfigReactNativeProjectConfig | null,
   platform: SupportedPlatform,
-  name: string,
-  packageRoot: string,
-  projectConfig: RNConfigReactNativeProjectConfig | null
+  excludeNames: Set<string>
 ): Promise<RNConfigDependency | null> {
-  const libraryConfig = await loadConfigAsync<RNConfigReactNativeLibraryConfig>(packageRoot);
+  if (excludeNames.has(resolution.name)) {
+    return null;
+  }
+
+  const libraryConfig = await loadConfigAsync<RNConfigReactNativeLibraryConfig>(resolution.path);
   const reactNativeConfig = {
     ...libraryConfig?.dependency,
-    ...projectConfig?.dependencies?.[name],
+    ...projectConfig?.dependencies?.[resolution.name],
   };
 
   if (Object.keys(libraryConfig?.platforms ?? {}).length > 0) {
     // Package defines platforms would be a platform host package.
     // The rnc-cli will skip this package.
     return null;
-  }
-  if (name === 'react-native' || name === 'react-native-macos') {
+  } else if (resolution.name === 'react-native' || resolution.name === 'react-native-macos') {
     // Starting from version 0.76, the `react-native` package only defines platforms
     // when @react-native-community/cli-platform-android/ios is installed.
     // Therefore, we need to manually filter it out.
     return null;
   }
 
-  let platformData = null;
+  let maybeExpoModuleConfig: ExpoModuleConfig | null | undefined;
+  if (!libraryConfig) {
+    // NOTE(@kitten): If we don't have an explicit react-native.config.{js,ts} file,
+    // we should pass the Expo Module config (if it exists) to the resolvers below,
+    // which can then decide if the React Native inferred config and Expo Module
+    // configs conflict
+    try {
+      maybeExpoModuleConfig = await discoverExpoModuleConfigAsync(resolution.path);
+    } catch {
+      // We ignore invalid Expo Modules for the purpose of auto-linking and
+      // pretend the config doesn't exist, if it isn't valid JSON
+    }
+  }
+
+  let platformData: RNConfigDependencyAndroid | RNConfigDependencyIos | null = null;
   if (platform === 'android') {
     platformData = await resolveDependencyConfigImplAndroidAsync(
-      packageRoot,
-      reactNativeConfig.platforms?.android
+      resolution.path,
+      reactNativeConfig.platforms?.android,
+      maybeExpoModuleConfig
     );
   } else if (platform === 'ios') {
     platformData = await resolveDependencyConfigImplIosAsync(
-      packageRoot,
-      reactNativeConfig.platforms?.ios
+      resolution,
+      reactNativeConfig.platforms?.ios,
+      maybeExpoModuleConfig
     );
   }
-  if (!platformData) {
-    return null;
-  }
+  return (
+    platformData && {
+      root: resolution.path,
+      name: resolution.name,
+      platforms: {
+        [platform]: platformData,
+      },
+    }
+  );
+}
+
+/**
+ * Create config for react-native core autolinking.
+ */
+export async function createReactNativeConfigAsync(
+  providedOptions: RNConfigCommandOptions
+): Promise<RNConfigResult> {
+  const options = await mergeLinkingOptionsAsync<SearchOptions & RNConfigCommandOptions>(
+    providedOptions
+  );
+  const excludeNames = new Set(options.exclude);
+  const projectConfig = await loadConfigAsync<RNConfigReactNativeProjectConfig>(
+    options.projectRoot
+  );
+
+  // custom native modules should be resolved first so that they can override other modules
+  const searchPaths =
+    options.nativeModulesDir && fs.existsSync(options.nativeModulesDir)
+      ? [options.nativeModulesDir, ...(options.searchPaths ?? [])]
+      : (options.searchPaths ?? []);
+
+  const limitDepth = options.legacy_shallowReactNativeLinking ? 1 : undefined;
+
+  const resolutions = mergeResolutionResults(
+    await Promise.all([
+      scanDependenciesFromRNProjectConfig(options.projectRoot, projectConfig),
+      ...searchPaths.map((searchPath) => scanDependenciesInSearchPath(searchPath)),
+      scanDependenciesRecursively(options.projectRoot, { limitDepth }),
+    ])
+  );
+
+  const dependencies = await filterMapResolutionResult(resolutions, (resolution) =>
+    resolveReactNativeModule(resolution, projectConfig, options.platform, excludeNames)
+  );
+
   return {
-    root: packageRoot,
-    name,
-    platforms: {
-      [platform]: platformData,
-    },
+    root: options.projectRoot,
+    reactNativePath: resolutions['react-native']?.path!,
+    dependencies,
+    project: await resolveAppProjectConfigAsync(
+      options.projectRoot,
+      options.platform,
+      options.sourceDir
+    ),
   };
 }
 
 export async function resolveAppProjectConfigAsync(
   projectRoot: string,
-  platform: SupportedPlatform
+  platform: SupportedPlatform,
+  sourceDir?: string
 ): Promise<RNConfigReactNativeAppProjectConfig> {
   if (platform === 'android') {
     const androidDir = path.join(projectRoot, 'android');
@@ -181,7 +158,7 @@ export async function resolveAppProjectConfigAsync(
     return {
       android: {
         packageName: packageName ?? '',
-        sourceDir: path.join(projectRoot, 'android'),
+        sourceDir: sourceDir ?? path.join(projectRoot, 'android'),
       },
     };
   }
@@ -189,7 +166,7 @@ export async function resolveAppProjectConfigAsync(
   if (platform === 'ios') {
     return {
       ios: {
-        sourceDir: path.join(projectRoot, 'ios'),
+        sourceDir: sourceDir ?? path.join(projectRoot, 'ios'),
       },
     };
   }

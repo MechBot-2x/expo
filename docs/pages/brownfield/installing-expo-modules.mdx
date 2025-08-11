@@ -13,7 +13,7 @@ This guide provides the steps to prepare your existing native project to install
 
 ## Prerequisites
 
-> **warning** The following instructions may not work for all projects. Support for integrating Expo modules into existing projects is still experimental. If you encounter issues, [create an issue on GitHub](https://github.com/expo/expo/issues).
+> **important** The following instructions may not work for all projects. Support for integrating Expo modules into existing projects is still experimental. If you encounter issues, [create an issue on GitHub](https://github.com/expo/expo/issues).
 
 You should have a brownfield native project with React Native installed and configured to render a root view. If you don't have this yet, follow the [Integration with Existing Apps](https://reactnative.dev/docs/integration-with-existing-apps) guide from the React Native documentation and then come back here once you have followed the steps.
 
@@ -124,7 +124,7 @@ index a71b5e7..d6d406e 100644
 @@ -7,6 +7,7 @@
      <application
          android:allowBackup="true"
-+        android:name=".MainApplication"
++         android:name=".MainApplication"
          android:fullBackupContent="@xml/backup_rules"`}
 />
 
@@ -186,7 +186,7 @@ index f991b7b..17c24b0 100644
 +    'node',
 +    '--no-warnings',
 +    '--eval',
-+    'require(require.resolve(\'expo-modules-autolinking\', { paths: [require.resolve(\'expo/package.json\')] }))(process.argv.slice(1))',
++    'require(require.resolve("expo-modules-autolinking", { paths: [require.resolve("expo/package.json")] }))(process.argv.slice(1))',
 +    'react-native-config',
 +    '--json',
 +    '--platform',

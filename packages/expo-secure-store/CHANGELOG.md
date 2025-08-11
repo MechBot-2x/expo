@@ -8,6 +8,36 @@
 
 ### 🐛 Bug fixes
 
+- [android] Reset `isAuthenticating` prompt flag when error is thrown ([#38132](https://github.com/expo/expo/pull/38132) by [@SYoder1](https://github.com/SYoder1))
+
+- [android] use more specific error messages in authentication prompt errors ([#38340](https://github.com/expo/expo/pull/38340) by [@SYoder1](https://github.com/SYoder1))
+
+### 💡 Others
+
+## 14.2.3 — 2025-04-30
+
+_This version does not introduce any user-facing changes._
+
+## 14.2.2 — 2025-04-25
+
+_This version does not introduce any user-facing changes._
+
+## 14.2.1 — 2025-04-14
+
+_This version does not introduce any user-facing changes._
+
+## 14.2.0 — 2025-04-11
+
+### 🎉 New features
+
+- [iOS] Added support for access groups. ([#36056](https://github.com/expo/expo/pull/36056) by [@chrsmys](https://github.com/chrsmys))
+
+## 14.1.1 — 2025-04-09
+
+_This version does not introduce any user-facing changes._
+
+## 14.1.0 — 2025-04-04
+
 ### 💡 Others
 
 - [Android] Started using expo modules gradle plugin. ([#34176](https://github.com/expo/expo/pull/34176) by [@lukmccall](https://github.com/lukmccall))

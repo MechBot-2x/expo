@@ -48,13 +48,14 @@ function registerReactNativeConfigCommand() {
         .command('react-native-config [paths...]')
         .option('-p, --platform [platform]', 'The platform that the resulting modules must support. Available options: "android", "ios"', 'ios')
         .addOption(new commander_1.default.Option('--project-root <projectRoot>', 'The path to the root of the project').default(process.cwd(), 'process.cwd()'))
+        .option('--source-dir <sourceDir>', 'The path to the native source directory')
         .option('-j, --json', 'Output results in the plain JSON format.', () => true, false)
         .action(async (searchPaths, providedOptions) => {
         if (!['android', 'ios'].includes(providedOptions.platform)) {
             throw new Error(`Unsupported platform: ${providedOptions.platform}`);
         }
         const projectRoot = path_1.default.dirname(await (0, autolinking_1.getProjectPackageJsonPathAsync)(providedOptions.projectRoot));
-        const linkingOptions = await (0, autolinking_1.mergeLinkingOptionsAsync)(searchPaths.length > 0
+        const options = await (0, autolinking_1.mergeLinkingOptionsAsync)(searchPaths.length > 0
             ? {
                 ...providedOptions,
                 projectRoot,
@@ -64,11 +65,6 @@ function registerReactNativeConfigCommand() {
                 ...providedOptions,
                 projectRoot,
             });
-        const options = {
-            platform: linkingOptions.platform,
-            projectRoot,
-            searchPaths: linkingOptions.searchPaths,
-        };
         const results = await (0, reactNativeConfig_1.createReactNativeConfigAsync)(options);
         if (providedOptions.json) {
             console.log(JSON.stringify(results));
@@ -99,6 +95,7 @@ module.exports = async function (args) {
     registerResolveCommand('resolve', async (results, options) => {
         const modules = await (0, autolinking_1.resolveModulesAsync)(results, options);
         const extraDependencies = await (0, autolinking_1.resolveExtraBuildDependenciesAsync)(options);
+        const configuration = (0, autolinking_1.getConfiguration)(options);
         const coreFeatures = [
             ...modules.reduce((acc, module) => {
                 if (hasCoreFeatures(module)) {
@@ -112,10 +109,20 @@ module.exports = async function (args) {
             }, new Set()),
         ];
         if (options.json) {
-            console.log(JSON.stringify({ extraDependencies, coreFeatures, modules }));
+            console.log(JSON.stringify({
+                extraDependencies,
+                coreFeatures,
+                modules,
+                ...(configuration ? { configuration } : {}),
+            }));
         }
         else {
-            console.log(require('util').inspect({ extraDependencies, coreFeatures, modules }, false, null, true));
+            console.log(require('util').inspect({
+                extraDependencies,
+                coreFeatures,
+                modules,
+                ...(configuration ? { configuration } : {}),
+            }, false, null, true));
         }
     }).option('-j, --json', 'Output results in the plain JSON format.', () => true, false);
     // Generates a source file listing all packages to link.

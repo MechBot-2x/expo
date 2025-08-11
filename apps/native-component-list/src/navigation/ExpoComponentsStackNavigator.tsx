@@ -13,6 +13,7 @@ import ExpoComponents from '../screens/ExpoComponentsScreen';
 import { MapsScreens } from '../screens/ExpoMaps/MapsScreen';
 import { GLScreens } from '../screens/GL/GLScreen';
 import { ImageScreens } from '../screens/Image/ImageScreen';
+import { SVGScreens } from '../screens/SVG/SVGScreen';
 import { UIScreens } from '../screens/UI/UIScreen';
 import { VideoScreens } from '../screens/Video/VideoScreen';
 import { type ScreenApiItem, type ScreenConfig } from '../types/ScreenConfig';
@@ -195,12 +196,6 @@ const ScreensList: ScreenConfig[] = [
   },
   {
     getComponent() {
-      return optionalRequire(() => require('../screens/SVG/SVGExampleScreen'));
-    },
-    name: 'SVGExample',
-  },
-  {
-    getComponent() {
       return optionalRequire(() => require('../screens/LinearGradientScreen'));
     },
     name: 'LinearGradient',
@@ -276,6 +271,12 @@ const ScreensList: ScreenConfig[] = [
   },
   {
     getComponent() {
+      return optionalRequire(() => require('../screens/KeyboardControllerScreen'));
+    },
+    name: 'KeyboardController',
+  },
+  {
+    getComponent() {
       return optionalRequire(() => require('../screens/ClipboardPasteButtonScreen'));
     },
     name: 'ClipboardPasteButton',
@@ -302,6 +303,7 @@ export const Screens: ScreenConfig[] = [
   ...ImageScreens,
   ...VideoScreens,
   ...UIScreens,
+  ...SVGScreens,
   ...MapsScreens,
 ];
 

@@ -5,6 +5,7 @@ import {
   findModulesAsync,
   generateModulesProviderAsync,
   generatePackageListAsync,
+  getConfiguration,
   getProjectPackageJsonPathAsync,
   mergeLinkingOptionsAsync,
   resolveExtraBuildDependenciesAsync,
@@ -108,6 +109,7 @@ function registerReactNativeConfigCommand() {
         'The path to the root of the project'
       ).default(process.cwd(), 'process.cwd()')
     )
+    .option('--source-dir <sourceDir>', 'The path to the native source directory')
     .option<boolean>('-j, --json', 'Output results in the plain JSON format.', () => true, false)
     .action(async (searchPaths, providedOptions) => {
       if (!['android', 'ios'].includes(providedOptions.platform)) {
@@ -116,7 +118,7 @@ function registerReactNativeConfigCommand() {
       const projectRoot = path.dirname(
         await getProjectPackageJsonPathAsync(providedOptions.projectRoot)
       );
-      const linkingOptions = await mergeLinkingOptionsAsync<SearchOptions>(
+      const options = await mergeLinkingOptionsAsync<RNConfigCommandOptions>(
         searchPaths.length > 0
           ? {
               ...providedOptions,
@@ -128,11 +130,6 @@ function registerReactNativeConfigCommand() {
               projectRoot,
             }
       );
-      const options: RNConfigCommandOptions = {
-        platform: linkingOptions.platform,
-        projectRoot,
-        searchPaths: linkingOptions.searchPaths,
-      };
       const results = await createReactNativeConfigAsync(options);
       if (providedOptions.json) {
         console.log(JSON.stringify(results));
@@ -164,6 +161,7 @@ module.exports = async function (args: string[]) {
   registerResolveCommand('resolve', async (results, options) => {
     const modules = await resolveModulesAsync(results, options);
     const extraDependencies = await resolveExtraBuildDependenciesAsync(options);
+    const configuration = getConfiguration(options);
 
     const coreFeatures = [
       ...modules.reduce<Set<string>>((acc, module) => {
@@ -179,10 +177,27 @@ module.exports = async function (args: string[]) {
       }, new Set()),
     ];
     if (options.json) {
-      console.log(JSON.stringify({ extraDependencies, coreFeatures, modules }));
+      console.log(
+        JSON.stringify({
+          extraDependencies,
+          coreFeatures,
+          modules,
+          ...(configuration ? { configuration } : {}),
+        })
+      );
     } else {
       console.log(
-        require('util').inspect({ extraDependencies, coreFeatures, modules }, false, null, true)
+        require('util').inspect(
+          {
+            extraDependencies,
+            coreFeatures,
+            modules,
+            ...(configuration ? { configuration } : {}),
+          },
+          false,
+          null,
+          true
+        )
       );
     }
   }).option<boolean>('-j, --json', 'Output results in the plain JSON format.', () => true, false);

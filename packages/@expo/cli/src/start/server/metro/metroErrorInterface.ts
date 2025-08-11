@@ -6,6 +6,7 @@
  */
 import { getMetroServerRoot } from '@expo/config/paths';
 import chalk from 'chalk';
+import { stripVTControlCharacters } from 'node:util';
 import path from 'path';
 import resolveFrom from 'resolve-from';
 import { parse, StackFrame } from 'stacktrace-parser';
@@ -16,8 +17,11 @@ import type { CodeFrame, StackFrame as MetroStackFrame } from './log-box/LogBoxS
 import { getStackFormattedLocation } from './log-box/formatProjectFilePath';
 import { Log } from '../../../log';
 import { stripAnsi } from '../../../utils/ansi';
+import { env } from '../../../utils/env';
 import { CommandError, SilentError } from '../../../utils/errors';
 import { createMetroEndpointAsync } from '../getStaticRenderFunctions';
+
+const isDebug = require('debug').enabled('expo:start:server:metro');
 
 function fill(width: number): string {
   return Array(width).join(' ');
@@ -59,8 +63,35 @@ export async function logMetroErrorWithStack(
     return;
   }
 
-  if (codeFrame) {
-    const maxWarningLineLength = Math.max(200, process.stdout.columns);
+  Log.log(
+    getStackAsFormattedLog(projectRoot, { stack, codeFrame, error, showCollapsedFrames: true })
+  );
+}
+
+export function getStackAsFormattedLog(
+  projectRoot: string,
+  {
+    stack,
+    codeFrame,
+    error,
+    showCollapsedFrames = env.EXPO_DEBUG,
+  }: {
+    stack: MetroStackFrame[];
+    codeFrame?: CodeFrame;
+    error?: Error;
+    showCollapsedFrames?: boolean;
+  }
+): string {
+  const logs: string[] = [];
+  let hasCodeFramePresented = false;
+  const containsCodeFrame = likelyContainsCodeFrame(error?.message);
+
+  if (containsCodeFrame) {
+    // Some transformation errors will have a code frame embedded in the error message
+    // from Babel and we should not duplicate it as message is already printed before this call.
+    hasCodeFramePresented = true;
+  } else if (codeFrame) {
+    const maxWarningLineLength = Math.max(800, process.stdout.columns);
 
     const lineText = codeFrame.content;
     const isPreviewTooLong = codeFrame.content
@@ -103,12 +134,12 @@ export async function logMetroErrorWithStack(
         // If the column property could be found, then use that to fix the cursor location which is often broken in regex.
         cursorLine = (column == null ? '' : fill(column) + chalk.reset('^')).slice(minBounds);
 
-        Log.log(
-          [formattedPath, '', previewLine, cursorLine, chalk.dim('(error truncated)')].join('\n')
-        );
+        logs.push(formattedPath, '', previewLine, cursorLine, chalk.dim('(error truncated)'));
+        hasCodeFramePresented = true;
       }
     } else {
-      Log.log(codeFrame.content);
+      logs.push(codeFrame.content);
+      hasCodeFramePresented = true;
     }
   }
 
@@ -122,31 +153,48 @@ export async function logMetroErrorWithStack(
     });
 
     const stackLines: string[] = [];
+    const backupStackLines: string[] = [];
 
     stackProps.forEach((frame) => {
+      const shouldShow = !frame.collapse || showCollapsedFrames;
+
       const position = terminalLink.isSupported
         ? terminalLink(frame.subtitle, frame.subtitle)
         : frame.subtitle;
       let lineItem = chalk.gray(`  ${frame.title} (${position})`);
+
       if (frame.collapse) {
         lineItem = chalk.dim(lineItem);
       }
       // Never show the internal module system.
-      if (!frame.subtitle.match(/\/metro-require\/require\.js/)) {
-        stackLines.push(lineItem);
+      const isMetroRuntime =
+        /\/metro-runtime\/src\/polyfills\/require\.js/.test(frame.subtitle) ||
+        /\/metro-require\/require\.js/.test(frame.subtitle);
+      if (!isMetroRuntime) {
+        if (shouldShow) {
+          stackLines.push(lineItem);
+        }
+        backupStackLines.push(lineItem);
       }
     });
 
-    Log.log();
-    Log.log(chalk.bold`Call Stack`);
-    if (!stackLines.length) {
-      Log.log(chalk.gray('  No stack trace available.'));
-    } else {
-      Log.log(stackLines.join('\n'));
+    if (hasCodeFramePresented) {
+      logs.push('');
     }
-  } else {
-    Log.log(chalk.gray(`  ${error.stack}`));
+    logs.push(chalk.bold`Call Stack`);
+
+    if (!backupStackLines.length) {
+      logs.push(chalk.gray('  No stack trace available.'));
+    } else {
+      // If there are not stack lines then it means the error likely happened in the node modules, in this case we should fallback to showing all the
+      // the stacks to give the user whatever help we can.
+      const displayStack = stackLines.length ? stackLines : backupStackLines;
+      logs.push(displayStack.join('\n'));
+    }
+  } else if (error && error.stack) {
+    logs.push(chalk.gray(`  ${error.stack}`));
   }
+  return logs.join('\n');
 }
 
 export const IS_METRO_BUNDLE_ERROR_SYMBOL = Symbol('_isMetroBundleError');
@@ -357,3 +405,60 @@ function canParse(url: string): boolean {
     return false;
   }
 }
+
+export function dropStackIfContainsCodeFrame(err: unknown) {
+  if (!(err instanceof Error)) return;
+
+  if (likelyContainsCodeFrame(err.message)) {
+    // If the error message contains a code frame, we should drop the stack to avoid cluttering the output.
+    delete err.stack;
+  }
+}
+
+/**
+ * Tests given string on presence of ` [num] |` at the start of any line.
+ * Returns `false` for undefined or empty strings.
+ */
+export function likelyContainsCodeFrame(message: string | undefined): boolean {
+  if (!message) return false;
+
+  const clean = stripVTControlCharacters(message);
+  if (!clean) return false;
+
+  return /^\s*\d+\s+\|/m.test(clean);
+}
+
+/**
+ * Walks thru the error cause chain and attaches the import stack to the root error message.
+ * Removes the error stack for import and syntax errors.
+ */
+export const attachImportStackToRootMessage = (err: unknown) => {
+  if (!(err instanceof Error)) return;
+
+  // Space out build failures.
+  const nearestImportStackValue = nearestImportStack(err);
+  if (nearestImportStackValue) {
+    err.message += '\n\n' + nearestImportStackValue;
+
+    if (!isDebug) {
+      // When not debugging remove the stack to avoid cluttering the output and confusing users,
+      // the import stack is the guide to fixing the error.
+      delete err.stack;
+    }
+  }
+};
+
+/**
+ * Walks thru the error cause chain and returns the nearest import stack.
+ * If the import stack is not found, it returns `undefined`.
+ */
+export const nearestImportStack = (err: unknown, root: unknown = err): string | undefined => {
+  if (!(err instanceof Error) || !(root instanceof Error)) return undefined;
+
+  if ('_expoImportStack' in err && typeof err._expoImportStack === 'string') {
+    // Space out build failures.
+    return err._expoImportStack;
+  } else {
+    return nearestImportStack(err.cause, root);
+  }
+};

@@ -15,30 +15,37 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reconcileTransformSerializerPlugin = exports.isEnvBoolean = exports.sortDependencies = void 0;
-/**
- * Copyright © 2024 650 Industries.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
+exports.sortDependencies = sortDependencies;
+exports.isEnvBoolean = isEnvBoolean;
+exports.reconcileTransformSerializerPlugin = reconcileTransformSerializerPlugin;
 const generator_1 = __importDefault(require("@babel/generator"));
+const JsFileWrapping_1 = __importDefault(require("@expo/metro/metro/ModuleGraph/worker/JsFileWrapping"));
+const importLocationsPlugin_1 = require("@expo/metro/metro/ModuleGraph/worker/importLocationsPlugin");
+const isResolvedDependency_1 = require("@expo/metro/metro/lib/isResolvedDependency");
+const metro_source_map_1 = require("@expo/metro/metro-source-map");
+const metro_transform_plugins_1 = require("@expo/metro/metro-transform-plugins");
 const assert_1 = __importDefault(require("assert"));
-const JsFileWrapping_1 = __importDefault(require("metro/src/ModuleGraph/worker/JsFileWrapping"));
-const importLocationsPlugin_1 = require("metro/src/ModuleGraph/worker/importLocationsPlugin");
-const metro_source_map_1 = require("metro-source-map");
-const metro_transform_plugins_1 = __importDefault(require("metro-transform-plugins"));
 const node_util_1 = __importDefault(require("node:util"));
 const jsOutput_1 = require("./jsOutput");
 const sideEffects_1 = require("./sideEffects");
@@ -103,7 +110,6 @@ function sortDependencies(dependencies, accordingTo) {
     });
     return nextDependencies;
 }
-exports.sortDependencies = sortDependencies;
 function isOptimizeEnabled(graph) {
     return isEnvBoolean(graph, 'optimize');
 }
@@ -112,7 +118,6 @@ function isEnvBoolean(graph, name) {
         return false;
     return String(graph.transformOptions.customTransformOptions[name]) === 'true';
 }
-exports.isEnvBoolean = isEnvBoolean;
 // This is the insane step which reconciles the second half of the transformation process but it does it uncached at the end of the bundling process when we have tree shaking completed.
 async function reconcileTransformSerializerPlugin(entryPoint, preModules, graph, options) {
     if (!isOptimizeEnabled(graph)) {
@@ -149,7 +154,9 @@ async function reconcileTransformSerializerPlugin(entryPoint, preModules, graph,
         const { importDefault, importAll } = reconcile;
         const sideEffectReferences = () => [...value.dependencies.values()]
             .filter((dep) => {
-            const fullDep = graph.dependencies.get(dep.absolutePath);
+            const fullDep = (0, isResolvedDependency_1.isResolvedDependency)(dep)
+                ? graph.dependencies.get(dep.absolutePath)
+                : undefined;
             return fullDep && (0, sideEffects_1.hasSideEffectWithDebugTrace)(options, graph, fullDep)[0];
         })
             .map((dep) => dep.data.name);
@@ -209,7 +216,7 @@ async function reconcileTransformSerializerPlugin(entryPoint, preModules, graph,
         }
         if (reconcile.normalizePseudoGlobals) {
             // This MUST run before `generate` as it mutates the ast out of place.
-            reserved.push(...metro_transform_plugins_1.default.normalizePseudoGlobals(wrappedAst, {
+            reserved.push(...(0, metro_transform_plugins_1.normalizePseudoGlobals)(wrappedAst, {
                 reservedNames: reserved,
             }));
         }
@@ -249,5 +256,4 @@ async function reconcileTransformSerializerPlugin(entryPoint, preModules, graph,
         };
     }
 }
-exports.reconcileTransformSerializerPlugin = reconcileTransformSerializerPlugin;
 //# sourceMappingURL=reconcileTransformSerializerPlugin.js.map
