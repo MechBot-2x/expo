@@ -4,6 +4,37 @@
 
 ### 🛠 Breaking changes
 
+- For `expo-router/testing-library`, `@testing-library/react-native` must now be installed separately and it's an optional peer dependency ([#38887](https://github.com/expo/expo/pull/38887) by [@kitten](https://github.com/kitten))
+
+### 🎉 New features
+
+### 🐛 Bug fixes
+
+- Remove unused peer dependency on `@testing-library/jest-native` ([#38886](https://github.com/expo/expo/pull/38886) by [@kitten](https://github.com/kitten))
+
+### 💡 Others
+
+## 6.0.0-beta.1 — 2025-08-15
+
+### 🎉 New features
+
+- Add web tabs ([#38435](https://github.com/expo/expo/pull/38435) by [@Ubax](https://github.com/Ubax))
+
+### 🐛 Bug fixes
+
+- [iOS] Suppress native link preview for Apple TV. ([#38814](https://github.com/expo/expo/pull/38814) by [@douglowder](https://github.com/douglowder))
+- fix navigation to hidden tabs ([#38829](https://github.com/expo/expo/pull/38829) by [@Ubax](https://github.com/Ubax))
+- add missing fields and checks to tabs API ([#38845](https://github.com/expo/expo/pull/38845) by [@Ubax](https://github.com/Ubax))
+- Remove reliance of deferred routing (for protected routes) on `ExpoRoot` update ([#38872](https://github.com/expo/expo/pull/38872) by [@kitten](https://github.com/kitten))
+
+### 💡 Others
+
+- remove global enableFreeze(false) ([#38837](https://github.com/expo/expo/pull/38837) by [@Ubax](https://github.com/Ubax))
+- Remove deprecated `@testing-library/jest-native` in favor of `@testing-library/react-native` ([#37361](https://github.com/expo/expo/pull/37361) by [@byCedric](https://github.com/byCedric))
+- Replace `schema-utils` with `@expo/schema-utils` ([#38863](https://github.com/expo/expo/pull/38863) by [@kitten](https://github.com/kitten))
+
+## 6.0.0-beta.0 — 2025-08-13
+
 ### 🎉 New features
 
 - Add modal component ([#37365](https://github.com/expo/expo/pull/37365) by [@Ubax](https://github.com/Ubax))
@@ -22,6 +53,8 @@
 - Native bottom tabs ([#37912](https://github.com/expo/expo/pull/37912) by [@Ubax](https://github.com/Ubax))
 - Allow running server middleware with `+middleware.ts` ([#38330](https://github.com/expo/expo/pull/38330) by [@hassankhan](https://github.com/hassankhan))
 - NativeTabs dynamic options ([#38581](https://github.com/expo/expo/pull/38581) by [@Ubax](https://github.com/Ubax))
+- add option to set border radius of highlight ([#38779](https://github.com/expo/expo/pull/38779) by [@Ubax](https://github.com/Ubax))
+- remove highlightBorderRadius prop ([#38796](https://github.com/expo/expo/pull/38796) by [@Ubax](https://github.com/Ubax)
 
 ### 🐛 Bug fixes
 
@@ -49,9 +82,16 @@
 - Fix Link Preview navigation in NativeTabs ([#38283](https://github.com/expo/expo/pull/38283) by [@Ubax](https://github.com/Ubax))
 - add option to hide label and show empty badge ([#38668](https://github.com/expo/expo/pull/38668) by [@Ubax](https://github.com/Ubax))
 - add unstable-native-tabs to files in package.json ([#38742](https://github.com/expo/expo/pull/38742) by [@Ubax](https://github.com/Ubax))
+- fix native tabs transitions with heavy views ([#38761](https://github.com/expo/expo/pull/38761) by [@Ubax](https://github.com/Ubax))
+- remove clip to bounds for Link.Preview ([#38763](https://github.com/expo/expo/pull/38763) by [@Ubax](https://github.com/Ubax))
+- fix preloading of protected routes ([#38789](https://github.com/expo/expo/pull/38789) by [@Ubax](https://github.com/Ubax))
+- fix link preview native navigation without tabs ([#38787](https://github.com/expo/expo/pull/38787) by [@Ubax](https://github.com/Ubax))
+- fix link preview on iPad ([#38791](https://github.com/expo/expo/pull/38791) by [@Ubax](https://github.com/Ubax))
+- revert heavy tabs optimization ([#38802](https://github.com/expo/expo/pull/38802) by [@Ubax](https://github.com/Ubax))
 
 ### 💡 Others
 
+- Clean up sitemap and add static hermes info. ([#38494](https://github.com/expo/expo/pull/38494) by [@EvanBacon](https://github.com/EvanBacon))
 - Fix web modal code being imported on native. ([#38553](https://github.com/expo/expo/pull/38553) by [@EvanBacon](https://github.com/EvanBacon))
 - Create href preview component ([#37335](https://github.com/expo/expo/pull/37335) by [@Ubax](https://github.com/Ubax))
 - Add formsheet warning ([#37982](https://github.com/expo/expo/pull/37982) by [@Ubax](https://github.com/Ubax))
