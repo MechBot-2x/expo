@@ -10,6 +10,14 @@
 
 ### 💡 Others
 
+## 29.0.3 — 2025-08-18
+
+_This version does not introduce any user-facing changes._
+
+## 29.0.2 — 2025-08-16
+
+_This version does not introduce any user-facing changes._
+
 ## 29.0.1 — 2025-08-15
 
 ### 💡 Others

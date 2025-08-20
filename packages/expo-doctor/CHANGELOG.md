@@ -10,6 +10,16 @@
 
 ### 💡 Others
 
+## 1.16.0 — 2025-08-19
+
+### 🎉 New features
+
+- Add check for lock-files. ([#38963](https://github.com/expo/expo/pull/38963) by [@entiendonull](https://github.com/entiendonull))
+
+## 1.15.1 — 2025-08-16
+
+_This version does not introduce any user-facing changes._
+
 ## 1.15.0 — 2025-08-15
 
 ### 🎉 New features
